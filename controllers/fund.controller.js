@@ -251,9 +251,9 @@ export const addFundDeposit = async (req, res) => {
   }
 };
 
-export const getMemberReportByMID = async (req, res) => {
+export const getDepositReportByMID = async (req, res) => {
   try {
-    const { MID } = req.query;
+   const { MID } = req.params;
 
     if (!MID) {
       return res.status(400).json({
@@ -264,37 +264,55 @@ export const getMemberReportByMID = async (req, res) => {
 
     const pool = await poolPromise;
 
-    const result = await pool.request()
-      .input("MID", MID)
-      .query(`
-        SELECT *
-        FROM [mlm_orenix].[dbo].[TopUp]
-        WHERE MID = @MID
-        ORDER BY id DESC
-      `);
-
-    const summary = await pool.request()
-      .input("MID", MID)
+    // ================= MAIN DATA =================
+    const data = await pool.request()
+      .input("MID", sql.VarChar, MID)
       .query(`
         SELECT 
-          COUNT(*) AS totalTransactions,
-          SUM(CAST(amount AS DECIMAL(18,2))) AS totalAmount
-        FROM [mlm_orenix].[dbo].[TopUp]
+          ID,
+          MID,
+          Name,
+          rDate,
+          Amount,
+          tNo,
+          ImageUrl,
+          Status,
+          Method,
+          Remark,
+          Type,
+          Refrence,
+          Bank
+        FROM dbo.AddFundRequest
+        WHERE MID = @MID
+        ORDER BY ID DESC
+      `);
+
+    // ================= SUMMARY =================
+    const summary = await pool.request()
+      .input("MID", sql.VarChar, MID)
+      .query(`
+        SELECT 
+          COUNT(*) AS totalRequests,
+          SUM(CAST(Amount AS DECIMAL(18,2))) AS totalAmount,
+          SUM(CASE WHEN Status = 'Pending' THEN 1 ELSE 0 END) AS pendingCount,
+          SUM(CASE WHEN Status = 'Approved' THEN 1 ELSE 0 END) AS approvedCount,
+          SUM(CASE WHEN Status = 'Rejected' THEN 1 ELSE 0 END) AS rejectedCount
+        FROM dbo.AddFundRequest
         WHERE MID = @MID
       `);
 
     return res.json({
       success: true,
-      data: result.recordset,
-      totalTransactions: summary.recordset[0].totalTransactions,
-      totalAmount: summary.recordset[0].totalAmount || 0,
+      data: data.recordset,
+      summary: summary.recordset[0],
     });
 
-  } catch (err) {
-    console.error("Member report error:", err);
+  } catch (error) {
+    console.log("Report API Error:", error);
+
     return res.status(500).json({
       success: false,
-      message: "Server error"
+      message: "Server Error",
     });
   }
 };
@@ -314,7 +332,7 @@ export const repFundDeposit = async (req, res) => {
       Refrence,
       Bank,
     } = req.body;
-console.log(req.body);
+
     if (!MID || !Amount || !tNo) {
       return res.status(400).json({
         success: false,
@@ -372,7 +390,7 @@ console.log(req.body);
           @Bank
         )
       `);
-console.log("Deposit request submitted successfully");
+
     return res.json({
       success: true,
       message: "Deposit request submitted successfully",

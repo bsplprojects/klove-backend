@@ -707,3 +707,129 @@ export const getTradeWalletTransferHistory = async (req, res) => {
     });
   }
 };
+
+
+export const withdrawRequest = async (req, res) => {
+  let transaction;
+
+  try {
+    const { MID, Name, Amount, WalletAddress } = req.body;
+
+    if (!MID || !Amount || !WalletAddress) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing required fields",
+      });
+    }
+
+    const amount = Number(Amount);
+
+    if (amount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid amount",
+      });
+    }
+
+    const pool = await poolPromise;
+
+    transaction = new sql.Transaction(pool);
+    await transaction.begin();
+
+    const request = new sql.Request(transaction);
+
+    // =========================================================
+    // GET USER
+    // =========================================================
+    const userResult = await request
+      .input("MID", sql.VarChar, MID)
+      .query(`
+        SELECT TOP 1 
+          m.MID,
+          m.Name,
+          md.Address,
+          m.Balance
+        FROM Get_MemberDashboard m
+        LEFT JOIN member_details md ON m.MID = md.MID
+        WHERE m.MID = @MID
+      `);
+
+    const user = userResult.recordset[0];
+
+    if (!user) {
+      await transaction.rollback();
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // =========================================================
+    // WALLET CHECK
+    // =========================================================
+    if (!user.Address || user.Address !== WalletAddress) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        message: "Invalid wallet address",
+      });
+    }
+
+    // =========================================================
+    // BALANCE CHECK
+    // =========================================================
+    if (amount > user.Balance) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        message: "Insufficient balance",
+      });
+    }
+
+    // =========================================================
+    // INSERT WITHDRAW REQUEST
+    // =========================================================
+    await request
+      .input("MID", sql.VarChar, MID)   // ✅ FIXED
+      .input("Name", sql.VarChar, Name)
+      .input("ExchAddress", sql.VarChar, WalletAddress)
+      .input("Coin", sql.VarChar, "USDT")
+      .input("AdminCharge", sql.Decimal(18, 2), 0)
+      .input("Tax", sql.Decimal(18, 2), 0)
+      .input("Payable", sql.Decimal(18, 2), amount)
+      .input("Status", sql.VarChar, "PENDING")
+      .input("Remark", sql.VarChar, "Withdrawal Request")
+      .input("Flag", sql.Int, 0)
+      .input("ModifyDate", sql.DateTime, new Date())
+      .input("Profit", sql.Decimal(18, 2), 0)
+      .query(`
+        INSERT INTO SendToTrustWallet
+        (MID, Name, ExchAddress, Coin, AdminCharge, Tax, Payable, Status, Remark, Flag, ModifyDate, Profit)
+        VALUES
+        (@MID, @Name, @ExchAddress, @Coin, @AdminCharge, @Tax, @Payable, @Status, @Remark, @Flag, @ModifyDate, @Profit)
+      `);
+
+   
+    // =========================================================
+    // COMMIT
+    // =========================================================
+    await transaction.commit();
+
+    return res.status(200).json({
+      success: true,
+      message: "Withdrawal request submitted successfully",
+    });
+
+  } catch (error) {
+    console.log(error);
+
+    if (transaction) {
+      await transaction.rollback();
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: "Server Error",
+    });
+  }
+};

@@ -5,7 +5,7 @@ const path = require("path");
 
 const {
   addFundDeposit,
-  getMemberReportByMID,
+  getDepositReportByMID,
   repFundDeposit,
 } = require("../controllers/fund.controller");
 
@@ -41,10 +41,6 @@ router.post(
   addFundDeposit
 );
 
-// MEMBER REPORT
-router.get(
-  "/report",
-  getMemberReportByMID
-);
+router.get("/report/:MID", getDepositReportByMID);
 
 module.exports = router;

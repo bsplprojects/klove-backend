@@ -1,5 +1,5 @@
 const { poolPromise, sql } = require("../config/db");
-
+const bcrypt = require("bcrypt");
 exports.getProfile = async (req, res) => {
   try {
     const userId = req.query.userId;
@@ -238,6 +238,156 @@ exports.getCommissionHistory = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: err.message,
+    });
+  }
+};
+
+// ================= UPDATE PROFILE =================
+
+exports.updateProfile = async (req, res) => {
+  try {
+    const { MID, email, phone, wallet } = req.body;
+
+    // ================= VALIDATION =================
+
+    if (!MID) {
+      return res.status(400).json({
+        success: false,
+        message: "MID is required",
+      });
+    }
+
+    // ================= DB CONNECTION =================
+
+    const pool = await poolPromise;
+
+    // ================= CHECK USER =================
+
+    const checkUser = await pool
+      .request()
+      .input("MID", sql.VarChar, MID)
+      .query(`
+        SELECT ConsumerID
+        FROM Member_Details
+        WHERE ConsumerID = @MID
+      `);
+
+    if (checkUser.recordset.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // ================= UPDATE PROFILE =================
+
+    await pool
+      .request()
+      .input("MID", sql.VarChar, MID)
+      .input("PhoneNo", sql.VarChar, email || "")
+      .input("MobileNo", sql.VarChar, phone || "")
+      .input("Address", sql.VarChar, wallet || "")
+      .query(`
+        UPDATE Member_Details
+        SET
+          PhoneNo = @PhoneNo,
+          MobileNo = @MobileNo,
+          Address = @Address
+        WHERE ConsumerID = @MID
+      `);
+
+    // ================= RESPONSE =================
+
+    return res.status(200).json({
+      success: true,
+      message: "Profile updated successfully",
+    });
+  } catch (error) {
+    console.log("UPDATE PROFILE ERROR =>", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Server Error",
+      error: error.message,
+    });
+  }
+};
+
+exports.changePassword = async (req, res) => {
+  try {
+    const { MID, currentPassword, newPassword } = req.body;
+
+    // ================= VALIDATION =================
+
+    if (!MID || !currentPassword || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "All fields are required",
+      });
+    }
+
+    const pool = await poolPromise;
+
+    // ================= GET USER =================
+
+    const result = await pool
+      .request()
+      .input("MID", sql.VarChar, MID)
+      .query(`
+        SELECT Password
+        FROM Member_Details
+        WHERE ConsumerID = @MID
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    const dbPassword = result.recordset[0].Password;
+
+    // ================= CHECK PASSWORD =================
+
+    const isMatch = await bcrypt.compare(
+      currentPassword,
+      dbPassword
+    );
+
+    if (!isMatch) {
+      return res.status(400).json({
+        success: false,
+        message: "Current password is incorrect",
+      });
+    }
+
+    // ================= HASH NEW PASSWORD =================
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // ================= UPDATE PASSWORD =================
+
+    await pool
+      .request()
+      .input("MID", sql.VarChar, MID)
+      .input("Password", sql.VarChar, hashedPassword)
+      .query(`
+        UPDATE Member_Details
+        SET Password = @Password
+        WHERE ConsumerID = @MID
+      `);
+
+    return res.status(200).json({
+      success: true,
+      message: "Password updated successfully",
+    });
+  } catch (error) {
+    console.log("CHANGE PASSWORD ERROR =>", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Server Error",
     });
   }
 };
