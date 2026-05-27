@@ -27,7 +27,7 @@ app.use(
   cors({
     origin: [
       "http://localhost:5173",
-      "https://backend.jbmglobal.pro",
+      "https://backend.jbmglobal.pro/",
      
     ],
     credentials: true,
