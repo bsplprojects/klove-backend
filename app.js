@@ -27,9 +27,8 @@ app.use(
   cors({
     origin: [
       "http://localhost:5173",
-      "https://orenix.io",
-      "https://backend.orenix.io",
-      "https://app.orenix.io",
+      "https://backend.jbmglobal.pro",
+     
     ],
     credentials: true,
   })
