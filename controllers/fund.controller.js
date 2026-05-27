@@ -6,6 +6,7 @@ import utc from "dayjs/plugin/utc.js";
 import timezone from "dayjs/plugin/timezone.js";
 import levelPayout from "../services/levelPayout.js";
 import { updateMyRank } from "../services/updateMyRank.js";
+import { CONNREFUSED } from "dns";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -321,7 +322,7 @@ export const getDepositReportByMID = async (req, res) => {
 
 export const repFundDeposit = async (req, res) => {
   try {
-    const {
+    let {
       MID,
       Name,
       Amount,
@@ -332,6 +333,21 @@ export const repFundDeposit = async (req, res) => {
       Refrence,
       Bank,
     } = req.body;
+
+    // ================= FIX =================
+    // Agar MID object/stringified object aa raha ho
+    if (typeof MID === "object" && MID !== null) {
+      MID = MID.MID;
+    }
+
+    if (typeof MID === "string" && MID.startsWith("{")) {
+      try {
+        const parsed = JSON.parse(MID);
+        MID = parsed.MID;
+      } catch (err) {}
+    }
+
+    console.log("FINAL MID =>", MID);
 
     if (!MID || !Amount || !tNo) {
       return res.status(400).json({
@@ -344,20 +360,19 @@ export const repFundDeposit = async (req, res) => {
       ? `/uploads/${req.file.filename}`
       : "";
 
-    // ================= DB CONNECTION =================
     const pool = await poolPromise;
 
     await pool.request()
-      .input("MID", sql.VarChar, MID)
-      .input("Name", sql.VarChar, Name || "")
+      .input("MID", sql.VarChar(50), MID)
+      .input("Name", sql.VarChar(100), Name || "")
       .input("Amount", sql.Decimal(18,2), Amount)
-      .input("tNo", sql.VarChar, tNo)
-      .input("ImageUrl", sql.VarChar, imageUrl)
-      .input("Method", sql.VarChar, Method || "")
-      .input("Remark", sql.VarChar, Remark || "")
-      .input("Type", sql.VarChar, Type || "")
-      .input("Refrence", sql.VarChar, Refrence || "")
-      .input("Bank", sql.VarChar, Bank || "")
+      .input("tNo", sql.VarChar(100), tNo)
+      .input("ImageUrl", sql.VarChar(500), imageUrl)
+      .input("Method", sql.VarChar(100), Method || "")
+      .input("Remark", sql.VarChar(500), Remark || "")
+      .input("Type", sql.VarChar(100), Type || "")
+      .input("Refrence", sql.VarChar(100), Refrence || "")
+      .input("Bank", sql.VarChar(100), Bank || "")
       .query(`
         INSERT INTO AddFundRequest
         (
