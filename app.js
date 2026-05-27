@@ -28,7 +28,7 @@ app.use(
     origin: [
       "http://localhost:5173",
       "https://backend.jbmglobal.pro/",
-      "https://jbmglobal.pro/",
+      "https://jbmglobal.pro",
     ],
     credentials: true,
   })
