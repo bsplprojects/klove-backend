@@ -335,7 +335,6 @@ export const repFundDeposit = async (req, res) => {
     } = req.body;
 
     // ================= FIX =================
-    // Agar MID object/stringified object aa raha ho
     if (typeof MID === "object" && MID !== null) {
       MID = MID.MID;
     }
@@ -346,8 +345,6 @@ export const repFundDeposit = async (req, res) => {
         MID = parsed.MID;
       } catch (err) {}
     }
-
-    console.log("FINAL MID =>", MID);
 
     if (!MID || !Amount || !tNo) {
       return res.status(400).json({
