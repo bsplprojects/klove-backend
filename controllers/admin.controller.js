@@ -13,37 +13,27 @@ exports.memberReport = async (req, res) => {
     const limit = parseInt(req.query.limit) || 50;
     const offset = (page - 1) * limit;
 
-    let whereClause = "";
-
-    if (search) {
-      whereClause = `
-        WHERE
-          ConsumerID LIKE @search OR
-          Address LIKE @search OR
-          SponsorID LIKE @search
-      `;
-    }
-
-    // 👇 single request from getPool
     const request = pool.request()
       .input("search", `%${search}%`)
       .input("offset", offset)
       .input("limit", limit);
 
-    const countResult = await request.query(`
+    const whereClause = search
+      ? `WHERE ConsumerID LIKE @search OR Address LIKE @search OR SponsorID LIKE @search`
+      : "";
+
+    const totalResult = await request.query(`
       SELECT COUNT(*) AS total
       FROM Member_Details
       ${whereClause}
     `);
 
-    const total = countResult.recordset[0].total;
-
     const dataResult = await request.query(`
       SELECT
-        Id,
+        ID,
         ConsumerID AS MemberID,
         Address AS Name,
-        SponsorID,
+        SponsorId,
         JoiningDate,
         CASE WHEN ISNULL(Price,0) > 0 THEN 'Active' ELSE 'Inactive' END AS Status,
         ISNULL(Price,0) AS Price,
@@ -57,7 +47,7 @@ exports.memberReport = async (req, res) => {
 
     res.json({
       success: true,
-      total,
+      total: totalResult.recordset[0].total,
       currentPage: page,
       members: dataResult.recordset,
     });

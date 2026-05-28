@@ -7,6 +7,9 @@ const {
   addFundDeposit,
   getDepositReportByMID,
   repFundDeposit,
+  getAllDeposits,
+  updateDepositStatus,
+  memberReport,
 } = require("../controllers/fund.controller");
 
 /* ================= MULTER ================= */
@@ -43,4 +46,8 @@ router.post(
 
 router.get("/report/:MID", getDepositReportByMID);
 
+router.get("/all-deposits", getAllDeposits);
+router.post("/update-status", updateDepositStatus);
+
+router.get("/member-report", memberReport);
 module.exports = router;

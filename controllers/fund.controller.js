@@ -422,7 +422,9 @@ export const repFundDeposit = async (req, res) => {
 
 export const getAllDeposits = async (req, res) => {
   try {
-    const result = await sql.query`
+    const pool = await poolPromise;
+
+    const result = await pool.request().query(`
       SELECT TOP (100000)
         ID,
         MID,
@@ -439,14 +441,15 @@ export const getAllDeposits = async (req, res) => {
         Bank
       FROM AddFundRequest
       ORDER BY ID DESC
-    `;
+    `);
 
     return res.status(200).json({
       success: true,
       data: result.recordset,
     });
+
   } catch (error) {
-    console.log(error);
+    console.log("getAllDeposits error:", error);
 
     return res.status(500).json({
       success: false,
@@ -461,19 +464,100 @@ export const updateDepositStatus = async (req, res) => {
   try {
     const { id, status } = req.body;
 
-    await sql.query`
-      UPDATE AddFundRequest
-      SET Status = ${status}
-      WHERE ID = ${id}
-    `;
+    const pool = await poolPromise;
+
+    await pool.request()
+      .input("id", sql.Int, id)
+      .input("status", sql.VarChar, status)
+      .query(`
+        UPDATE AddFundRequest
+        SET Status = @status
+        WHERE ID = @id
+      `);
 
     return res.status(200).json({
       success: true,
       message: "Deposit status updated",
     });
+
   } catch (error) {
     console.log(error);
 
+    return res.status(500).json({
+      success: false,
+      message: "Server Error",
+    });
+  }
+};
+
+export const memberReport = async (req, res) => {
+  try {
+    const pool = await poolPromise;
+
+    const search = req.query.search || "";
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 50;
+    const offset = (page - 1) * limit;
+
+    const hasSearch = search.trim().length > 0;
+
+    const whereClause = hasSearch
+      ? `WHERE 
+          ConsumerID LIKE @search 
+          OR Address LIKE @search 
+          OR SponsorId LIKE @search`
+      : "";
+
+    // ✅ NEW REQUEST FOR COUNT
+    const countRequest = pool.request();
+    if (hasSearch) countRequest.input("search", `%${search}%`);
+
+    const totalResult = await countRequest.query(`
+      SELECT COUNT(*) AS total
+      FROM Member_Details
+      ${whereClause}
+    `);
+
+    // ✅ NEW REQUEST FOR DATA
+    const dataRequest = pool.request()
+      .input("offset", offset)
+      .input("limit", limit);
+
+    if (hasSearch) dataRequest.input("search", `%${search}%`);
+
+    const dataResult = await dataRequest.query(`
+      SELECT
+        ID,
+        ConsumerID AS MemberID,
+        Name,
+        MobileNo,
+        PhoneNo,
+        Address AS Address,
+        SponsorId,
+        JoiningDate,
+        CASE 
+          WHEN ISNULL(Price,0) > 0 THEN 'Active' 
+          ELSE 'Inactive' 
+        END AS Status,
+        ISNULL(Price,0) AS Price,
+        0 AS TotalIncome
+      FROM Member_Details
+      ${whereClause}
+      ORDER BY JoiningDate DESC
+      OFFSET @offset ROWS
+      FETCH NEXT @limit ROWS ONLY
+    `);
+
+    return res.json({
+      success: true,
+      total: totalResult.recordset[0].total,
+      currentPage: page,
+      limit,
+      members: dataResult.recordset,
+    });
+
+  } catch (err) {
+    console.log("MEMBER REPORT ERROR:", err);
     return res.status(500).json({
       success: false,
       message: "Server Error",
