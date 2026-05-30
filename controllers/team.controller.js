@@ -93,125 +93,108 @@ export const memberDownlineDetailsWithLevel = async (req, res) => {
     const pool = await poolPromise;
 
     let finalData = [];
+    const visited = new Set();
+
+    let queue = [{ id: userId, level: 0 }];
     let srno = 0;
 
-    // ================= ROOT MEMBER =================
-    const rootResult = await pool
-      .request()
-      .input("ConsumerId", sql.VarChar, userId)
-      .query(`
-        SELECT 
-          ConsumerID,
-          Name,
-          JoiningDate,
-          Price,
-          Joining_Comp_Level,
-          SponsorId,
-          Address
-        FROM Member_Details
-        WHERE ConsumerID = @ConsumerId
-      `);
+    while (queue.length > 0) {
+      const nextQueue = [];
 
-    if (rootResult.recordset.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "Member not found",
-      });
-    }
+      for (const node of queue) {
+        const { id, level } = node;
 
-    // ================= BFS VARIABLES =================
-    let currentIds = [userId];
-    let level = 1;
+        if (visited.has(id)) continue;
+        visited.add(id);
 
-    // ================= LOOP ALL LEVELS =================
-    while (currentIds.length > 0) {
-      const idsString = currentIds.map((id) => `'${id}'`).join(",");
+        // ================= DOWNLINE =================
+        const result = await pool.request().query(`
+          SELECT
+            ConsumerID,
+            Name,
+            JoiningDate,
+            Price,
+            Joining_Comp_Level,
+            SponsorId,
+            MobileNo,
+            Address
+          FROM Member_Details
+          WHERE SponsorId = '${id}'
+        `);
 
-      // GET CHILD MEMBERS
-      const downlineResult = await pool.request().query(`
-        SELECT
-          ConsumerID,
-          Name,
-          JoiningDate,
-          Price,
-          Joining_Comp_Level,
-          SponsorId,
-          MobileNo,
-          Address
-        FROM Member_Details
-        WHERE SponsorId IN (${idsString})
-      `);
+        const members = result.recordset;
 
-      const members = downlineResult.recordset;
+        for (const member of members) {
+          if (visited.has(member.ConsumerID)) continue;
 
-      // STOP IF NO DATA
-      if (members.length === 0) {
-        break;
-      }
+          const nextLevel = level + 1;
 
-      // NEXT LEVEL IDS
-      currentIds = [];
+          // ================= TOPUP + FIRST DATE =================
+          const topupResult = await pool
+            .request()
+            .input("MID", sql.VarChar, member.ConsumerID)
+            .query(`
+              SELECT 
+                ISNULL(SUM(amount),0) AS TotalTopup,
+                MIN(tdate) AS ActiveDate
+              FROM TopUp
+              WHERE MID = @MID
+            `);
 
-      // ================= MEMBER LOOP =================
-      for (const member of members) {
-        currentIds.push(member.ConsumerID);
+          const totalTopup =
+            topupResult.recordset[0]?.TotalTopup || 0;
 
-        // TOTAL TOPUP
-        const topupResult = await pool
-          .request()
-          .input("MID", sql.VarChar, member.ConsumerID)
-          .query(`
-            SELECT ISNULL(SUM(amount),0) AS TotalTopup
-            FROM TopUp
-            WHERE MID = @MID
-          `);
+          const activeDateRaw =
+            topupResult.recordset[0]?.tdate || null;
 
-        const totalTopup =
-          topupResult.recordset[0]?.TotalTopup || 0;
+          srno++;
 
-        srno++;
+          finalData.push({
+            Srno: srno,
+            ConsumerId: member.ConsumerID,
+            ConsumerName: member.Name,
+            SponsorId: member.SponsorId,
+            MobileNo: member.MobileNo,
+            Address: member.Address,
 
-        finalData.push({
-          Srno: srno,
-          ConsumerId: member.ConsumerID,
-          ConsumerName: member.Name,
+            Level: nextLevel,
 
-          JoiningDate: member.JoiningDate
-            ? new Date(member.JoiningDate).toLocaleString(
-                "en-IN",
-                {
+            JoiningDate: member.JoiningDate
+              ? new Date(member.JoiningDate).toLocaleString("en-IN")
+              : "",
+
+            // 🔥 NEW: FIRST TOPUP DATE
+            ActiveDate: activeDateRaw
+              ? new Date(activeDateRaw).toLocaleString("en-IN", {
                   day: "2-digit",
                   month: "short",
                   year: "numeric",
                   hour: "2-digit",
                   minute: "2-digit",
-                  second: "2-digit",
                   hour12: true,
-                }
-              )
-            : "",
+                })
+              : null,
 
-          Amount: totalTopup,
-          Level: level,
-address:member.Address,
-          ActiveDate: member.Joining_Comp_Level,
-          SponsorId: member.SponsorId,
-          MobileNo: member.MobileNo,
+            Amount: totalTopup,
+            Status: totalTopup > 0 ? "Active" : "Inactive",
+          });
 
-          Status: totalTopup > 0 ? "Active" : "Inactive",
-        });
+          nextQueue.push({
+            id: member.ConsumerID,
+            level: nextLevel,
+          });
+        }
       }
 
-      // NEXT LEVEL
-      level++;
+      queue = nextQueue;
     }
 
-    // ================= RESPONSE =================
     return res.status(200).json({
       success: true,
       total: finalData.length,
       data: finalData,
     });
+
   } catch (error) {
     console.log("DOWNLINE ERROR:", error);
 
@@ -323,6 +306,7 @@ export const activatePlan = async (req, res) => {
     const { userId, amount, round } = req.body;
 
     // ================= VALIDATION =================
+
     if (!userId || !amount || !round) {
       return res.status(400).json({
         success: false,
@@ -330,9 +314,19 @@ export const activatePlan = async (req, res) => {
       });
     }
 
+    const investAmount = Number(amount);
+
+    if (isNaN(investAmount) || investAmount < 30 || investAmount > 50000) {
+      return res.status(400).json({
+        success: false,
+        message: "Investment amount must be between 30 and 50000",
+      });
+    }
+
     const pool = await poolPromise;
 
     // ================= USER DETAILS =================
+
     const userResult = await pool
       .request()
       .input("ConsumerID", sql.VarChar, userId)
@@ -351,66 +345,69 @@ export const activatePlan = async (req, res) => {
 
     const user = userResult.recordset[0];
 
-  // ================= WALLET CHECK =================
-const walletResult = await pool
-  .request()
-  .input("userID", sql.VarChar, userId)
-  .execute("Get_MyFundWallet");
+    // ================= WALLET BALANCE =================
 
-// SP RESULT
-const walletBalance = Number(
-  walletResult.recordset?.[0]?.Balance || 0
-);
+    const walletResult = await pool
+      .request()
+      .input("userID", sql.VarChar, userId)
+      .execute("Get_MyFundWallet");
 
-if (walletBalance < Number(amount)) {
-  return res.status(400).json({
-    success: false,
-    message: "Insufficient wallet balance",
-  });
-}
+    const walletBalance = Number(
+      walletResult.recordset?.[0]?.Balance || 0
+    );
 
-   
-    // ================= INSERT TOPUP =================
+    if (walletBalance < investAmount) {
+      return res.status(400).json({
+        success: false,
+        message: "Insufficient wallet balance",
+      });
+    }
+
+    // ================= TOPUP INSERT =================
+
     await pool
-  .request()
-  .input("MID", sql.VarChar, userId)
-  .input("Name", sql.VarChar, user.Name)
-  .input("amount", sql.Decimal(18, 2), amount)
-  .input("pType", sql.VarChar, `Round ${round}`)
-  .input("Coin", sql.Float, Number(amount))
-  .query(`
-    INSERT INTO TopUp
-    (
-      MID,
-      Name,
-      amount,
-      tdate,
-      pDate,
-      pType,
-      Coin,
-      Status,
-      UserAddress,
-      TxHash
-    )
-    VALUES
-    (
-      @MID,
-      @Name,
-      @amount,
-      GETDATE(),
-      GETDATE(),
-      @pType,
-      @Coin,
-      'Active',
-      '',
-      ''
-    )
-  `);
-    // ================= UPDATE MEMBER =================
+      .request()
+      .input("MID", sql.VarChar, userId)
+      .input("Name", sql.VarChar, user.Name || "")
+      .input("amount", sql.Decimal(18, 2), investAmount)
+      .input("pType", sql.VarChar, `Round ${round}`)
+      .input("Coin", sql.Float, investAmount)
+      .query(`
+        INSERT INTO TopUp
+        (
+          MID,
+          Name,
+          amount,
+          tdate,
+          pDate,
+          pType,
+          Coin,
+          Status,
+          UserAddress,
+          TxHash
+        )
+        VALUES
+        (
+          @MID,
+          @Name,
+          @amount,
+          GETDATE(),
+          GETDATE(),
+          @pType,
+          @Coin,
+          'Active',
+          '',
+          ''
+        )
+      `);
+
+
+    // ================= MEMBER UPDATE =================
+
     await pool
       .request()
       .input("ConsumerID", sql.VarChar, userId)
-      .input("Price", sql.Decimal(18, 2), amount)
+      .input("Price", sql.Decimal(18, 2), investAmount)
       .input("Product_Name", sql.VarChar, `Round ${round}`)
       .input("Joining_Comp_Level", sql.Int, round)
       .query(`
@@ -423,14 +420,16 @@ if (walletBalance < Number(amount)) {
         WHERE ConsumerID = @ConsumerID
       `);
 
-    // ================= RESPONSE =================
+    // ================= SUCCESS =================
+
     return res.status(200).json({
       success: true,
       message: "Plan Activated Successfully",
       data: {
         userId,
-        amount,
+        amount: investAmount,
         round,
+        walletBalance,
       },
     });
   } catch (error) {
