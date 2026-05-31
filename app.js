@@ -20,38 +20,50 @@ const packageRoutes = require("./routes/package.routes");
 const db = require("./config/db");
 
 const app = express();
+const PORT = process.env.PORT || 5000;
 
 // ================= MIDDLEWARE =================
+
+app.set("trust proxy", 1);
+
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 app.use(
   cors({
     origin: [
       "http://localhost:5173",
-      "https://backend.jbmglobal.pro/",
+      "https://backend.jbmglobal.pro",
       "https://jbmglobal.pro",
+      "https://www.jbmglobal.pro",
     ],
     credentials: true,
   })
 );
+
+// ================= SESSION =================
 
 app.use(
   session({
     secret: process.env.SESSION_SECRET || "ornix-secret",
     resave: false,
     saveUninitialized: false,
+
     cookie: {
-      secure: false,
+      secure: process.env.NODE_ENV === "production",
       httpOnly: true,
       sameSite: "lax",
+      maxAge: 1000 * 60 * 60 * 24, // 1 day
     },
   })
 );
 
 // ================= STATIC =================
+
 app.use("/uploads", express.static("uploads"));
 
 // ================= ROUTES =================
+
 app.use("/api/auth", authRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/team", teamRoutes);
@@ -66,11 +78,17 @@ app.use("/api/rank", rankRoutes);
 app.use("/api/package", packageRoutes);
 
 // ================= HEALTH CHECK =================
+
 app.get("/", (req, res) => {
-  res.send("API Working 🚀");
+  res.status(200).json({
+    success: true,
+    message: "API Working 🚀",
+    environment: process.env.NODE_ENV || "development",
+  });
 });
 
 // ================= 404 =================
+
 app.use((req, res) => {
   res.status(404).json({
     success: false,
@@ -79,28 +97,34 @@ app.use((req, res) => {
 });
 
 // ================= ERROR HANDLER =================
-app.use((err, req, res, next) => {
-  console.error("Server Error:", err);
 
-  res.status(500).json({
+app.use((err, req, res, next) => {
+  console.error("SERVER ERROR =>", err);
+
+  res.status(err.status || 500).json({
     success: false,
-    message: "Internal Server Error",
+    message: err.message || "Internal Server Error",
   });
 });
 
-// ================= DB + SERVER START (FIXED) =================
+// ================= START SERVER =================
+
 async function startServer() {
   try {
-    const pool = await db.poolPromise; 
+    await db.poolPromise;
 
-    console.log("Database Connected");
+    console.log("✅ Database Connected");
 
-    app.listen(5000, () => {
-      console.log("🚀 Server running");
+    app.listen(PORT, () => {
+      console.log(`🚀 Server Running On Port ${PORT}`);
+      console.log(
+        `🌍 Environment: ${process.env.NODE_ENV || "development"}`
+      );
     });
-
   } catch (err) {
-    console.error("DB Connection Failed:", err);
+    console.error("❌ Database Connection Failed");
+    console.error(err);
+    process.exit(1);
   }
 }
 

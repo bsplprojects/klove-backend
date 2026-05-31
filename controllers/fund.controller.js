@@ -564,3 +564,136 @@ export const memberReport = async (req, res) => {
     });
   }
 };
+
+export const sendFund = async (req, res) => {
+  try {
+    const { MID, Amount, Remark } = req.body;
+
+    if (!MID || !Amount) {
+      return res.status(400).json({
+        success: false,
+        message: "Member ID and Amount are required",
+      });
+    }
+
+    const pool = await poolPromise;
+
+    // Member Check
+    const member = await pool
+      .request()
+      .input("MID", sql.VarChar(50), MID)
+      .query(`
+        SELECT TOP 1 *
+        FROM Member_Details
+        WHERE ConsumerID=@MID
+      `);
+
+    if (member.recordset.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Member not found",
+      });
+    }
+
+    const memberData = member.recordset[0];
+
+    // Random Transaction No
+    const transactionNo =
+      "SF" +
+      Date.now() +
+      Math.floor(Math.random() * 9999);
+
+    // Random Hash
+    const hashId = crypto
+      .randomBytes(8)
+      .toString("hex")
+      .toUpperCase();
+
+    await pool
+      .request()
+      .input("MID", sql.VarChar(50), MID)
+      .input("Name", sql.VarChar(100), memberData.Name || "")
+      .input("Amount", sql.Decimal(18, 2), Amount)
+      .input("tNo", sql.VarChar(100), transactionNo)
+      .input("Remark", sql.VarChar(500), Remark || "")
+      .input("HashId", sql.VarChar(100), hashId)
+      .query(`
+        INSERT INTO AddFundRequest
+        (
+          MID,
+          Name,
+          rDate,
+          Amount,
+          tNo,
+          Status,
+          Method,
+          Remark,
+          Type,
+          Refrence
+        )
+        VALUES
+        (
+          @MID,
+          @Name,
+          GETDATE(),
+          @Amount,
+          @tNo,
+          'Approved',
+          'Admin Transfer',
+          @Remark,
+          'SendFund',
+          @HashId
+        )
+      `);
+
+    return res.status(200).json({
+      success: true,
+      message: "Fund sent successfully",
+      transactionNo,
+      hashId,
+    });
+  } catch (error) {
+    console.log(error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Server Error",
+    });
+  }
+};
+
+export const getSendFundHistory = async (req, res) => {
+  try {
+    const pool = await poolPromise;
+
+    const result = await pool.request().query(`
+      SELECT
+        Id,
+        MID,
+        Name,
+        Amount,
+        tNo,
+        Status,
+        Method,
+        Remark,
+        Type,
+        Refrence,
+        rDate AS CreatedAt
+      FROM AddFundRequest
+      WHERE Type = 'SendFund'
+      ORDER BY Id DESC
+    `);
+
+    return res.status(200).json({
+      success: true,
+      data: result.recordset,
+    });
+  } catch (error) {
+    console.log(error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Server Error",
+    });
+  }
+};
