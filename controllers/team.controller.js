@@ -632,16 +632,26 @@ export const getMyPlans = async (req, res) => {
 
 
 
+// let isRunning = false;
+
 // export const activatePlanController = async (req, res) => {
-//   const pool = await poolPromise;
-//   const transaction = new sql.Transaction(pool);
+//   if (isRunning) {
+//     return res.status(429).json({
+//       success: false,
+//       message: "Already processing request",
+//     });
+//   }
+
+//   isRunning = true;
 
 //   try {
+//     const pool = await poolPromise;
+//     const transaction = new sql.Transaction(pool);
+
 //     await transaction.begin();
 
 //     const request = new sql.Request(transaction);
 
-//     // ================= GET ALL TOPUP ROWS =================
 //     const result = await request.query(`
 //       SELECT MID, amount
 //       FROM TopUp
@@ -649,11 +659,12 @@ export const getMyPlans = async (req, res) => {
 
 //     const topups = result.recordset;
 
+//     console.log("TOPUPS:", topups); // 🔥 will print only once now
+
 //     if (!topups.length) {
 //       throw new Error("No TopUp records found");
 //     }
 
-//     // ================= LOOP ALL ROWS =================
 //     for (const row of topups) {
 //       await levelPayout(row.MID, row.amount, transaction);
 //     }
@@ -678,5 +689,8 @@ export const getMyPlans = async (req, res) => {
 //       success: false,
 //       message: err.message,
 //     });
+
+//   } finally {
+//     isRunning = false; // 🔥 reset lock
 //   }
 // };

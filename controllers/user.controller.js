@@ -190,32 +190,41 @@ exports.getCommissionHistory = async (req, res) => {
 
     const pool = await poolPromise;
 
-    const result = await pool.request()
+    const result = await pool
+      .request()
       .input("MID", sql.VarChar, MID)
       .query(`
         SELECT TOP (100000)
-              [Id],
-              [Payoutdate],
-              [Payoutstartdate],
-              [PayoutEnddate],
-              [Consumerid],
-              [Name],
-              [Lavel],
-              [lavelcosumied],
-              [Totalbv],
-              [Percent],
-              [Levelincome],
-              [Totalmember],
-              [PayoutType]
-        FROM [mlm_orenix].[dbo].[Comission]
-        WHERE Consumerid = @MID
-        ORDER BY Payoutdate DESC
+          c.[Id],
+          c.[Payoutdate],
+          c.[Payoutstartdate],
+          c.[PayoutEnddate],
+          c.[Consumerid],
+
+          c.[Name] AS ConsumerName,
+
+          c.[Lavel],
+
+          m.[Name] AS MemberName,   
+
+          c.[lavelcosumied],
+          c.[Totalbv],
+          c.[Percent],
+          c.[Levelincome],
+          c.[Totalmember],
+          c.[PayoutType]
+
+        FROM [Comission] c
+        LEFT JOIN [member_details] m
+          ON c.[lavelcosumied] = m.[Consumerid]
+
+        WHERE c.[Consumerid] = @MID
+        ORDER BY c.[Payoutdate] DESC
       `);
 
     const rows = result.recordset;
 
-    // ================= TOTAL =================
-
+    // ================= TOTAL INCOME =================
     const totalIncome = rows.reduce(
       (sum, item) => sum + Number(item.Levelincome || 0),
       0
@@ -223,17 +232,16 @@ exports.getCommissionHistory = async (req, res) => {
 
     return res.json({
       success: true,
-
       summary: {
         MID,
         totalRecords: rows.length,
         totalIncome,
       },
-
       data: rows,
     });
+
   } catch (err) {
-    console.log(err);
+    console.log("Commission Error:", err);
 
     return res.status(500).json({
       success: false,
@@ -388,6 +396,77 @@ exports.changePassword = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Server Error",
+    });
+  }
+};
+
+exports.getP2pLedgerReport = async (req, res) => {
+  try {
+    const MID = req.query.MID;
+
+    if (!MID) {
+      return res.status(400).json({
+        success: false,
+        message: "MID is required",
+      });
+    }
+
+    const pool = await poolPromise;
+
+    const result = await pool
+      .request()
+      .input("MID", sql.VarChar, MID)
+      .query(`
+        SELECT TOP (100000)
+          [ID],
+          [MID],
+          [Name],
+          [pDate],
+          [qty],
+          [Amount],
+          [type],
+          [Remarks],
+          [tType],
+          [transID],
+          [cRate],
+          [TRX],
+          [bal]
+        FROM [mlm_jbmglobal].[dbo].[ledger]
+        WHERE MID = @MID
+          AND transID = 'by Transfer'
+        ORDER BY pDate DESC
+      `);
+
+    const rows = result.recordset;
+
+    // ================= TOTAL =================
+    const totalAmount = rows.reduce(
+      (sum, item) => sum + Number(item.Amount || 0),
+      0
+    );
+
+    const totalQty = rows.reduce(
+      (sum, item) => sum + Number(item.qty || 0),
+      0
+    );
+
+    return res.json({
+      success: true,
+      summary: {
+        MID,
+        totalRecords: rows.length,
+        totalAmount,
+        totalQty,
+      },
+      data: rows,
+    });
+
+  } catch (err) {
+    console.log("Ledger Error:", err);
+
+    return res.status(500).json({
+      success: false,
+      message: err.message,
     });
   }
 };
