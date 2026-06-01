@@ -456,7 +456,9 @@ await pool
         WHERE ConsumerID = @ConsumerID
       `);
 
-     await levelPayout(userId, investAmount);
+  
+
+    await levelPayout(userId, investAmount);
 
     // ================= SUCCESS =================
 
