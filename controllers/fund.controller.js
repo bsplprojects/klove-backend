@@ -501,36 +501,58 @@ export const updateDepositStatus = async (req, res) => {
       status === "Approved" &&
       deposit.Status !== "Approved"
     ) {
-      await pool
+      console.log("Deposit:", deposit);
+
+      // Get Member Details
+      const memberResult = await pool
         .request()
-        .input("MID", sql.VarChar, deposit.MemberId)
-        .input("Amount", sql.Decimal(18, 2), deposit.Amount)
+        .input("MID", sql.VarChar, deposit.MID)
         .query(`
-          INSERT INTO ledgers
-          (
-            MID,
-            Name,
-            pDate,
-            qty,
-            Amount,
-            type,
-            Remarks,
-            tType,
-            transID
-          )
-          SELECT
-            m.ConsumerID,
-            m.Name,
-            GETDATE(),
-            1,
-            @Amount,
-            'Fund Deposit',
-            'Fund Added By Admin',
-            'Cr.',
-            CONCAT('DEP-', ${id})
-          FROM Member_Details m
-          WHERE m.ConsumerID = @MID
+          SELECT TOP 1 *
+          FROM Member_Details
+          WHERE ConsumerID = @MID
         `);
+
+      const member = memberResult.recordset[0];
+
+      if (member) {
+        await pool
+          .request()
+          .input("MID", sql.VarChar, deposit.MID)
+          .input("Name", sql.VarChar, member.Name || "")
+          .input("Amount", sql.Decimal(18, 2), deposit.Amount)
+          .input("transID", sql.VarChar, `DEP-${id}`)
+          .query(`
+            INSERT INTO ledger
+            (
+              MID,
+              Name,
+              pDate,
+              qty,
+              Amount,
+              type,
+              Remarks,
+              tType,
+              transID
+            )
+            VALUES
+            (
+              @MID,
+              @Name,
+              GETDATE(),
+              1,
+              @Amount,
+              'Fund Deposit',
+              'Fund Added By Admin',
+              'Cr.',
+              @transID
+            )
+          `);
+
+        console.log("Ledger Inserted Successfully");
+      } else {
+        console.log("Member not found for MID:", deposit.MID);
+      }
     }
 
     return res.status(200).json({
@@ -538,11 +560,11 @@ export const updateDepositStatus = async (req, res) => {
       message: "Deposit status updated",
     });
   } catch (error) {
-    console.log(error);
+    console.log("Update Deposit Error:", error);
 
     return res.status(500).json({
       success: false,
-      message: "Server Error",
+      message: error.message || "Server Error",
     });
   }
 };
@@ -711,7 +733,7 @@ await pool
   .input("Amount", sql.Decimal(18, 2), Amount)
   .input("TxnNo", sql.VarChar(100), transactionNo)
   .query(`
-    INSERT INTO ledgers
+    INSERT INTO ledger
     (
       MID,
       Name,

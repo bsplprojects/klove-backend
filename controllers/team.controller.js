@@ -410,7 +410,7 @@ await pool
   .input("Amount", sql.Decimal(18, 2), investAmount)
   .input("Round", sql.VarChar, `Round ${round}`)
   .query(`
-    INSERT INTO ledgers
+    INSERT INTO ledger
     (
       MID,
       Name,
