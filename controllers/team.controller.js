@@ -401,6 +401,41 @@ export const activatePlan = async (req, res) => {
         )
       `);
 
+      // ================= LEDGER DEBIT =================
+
+await pool
+  .request()
+  .input("MID", sql.VarChar, userId)
+  .input("Name", sql.VarChar, user.Name || "")
+  .input("Amount", sql.Decimal(18, 2), investAmount)
+  .input("Round", sql.VarChar, `Round ${round}`)
+  .query(`
+    INSERT INTO ledgers
+    (
+      MID,
+      Name,
+      pDate,
+      qty,
+      Amount,
+      type,
+      Remarks,
+      tType,
+      transID
+    )
+    VALUES
+    (
+      @MID,
+      @Name,
+      GETDATE(),
+      1,
+      @Amount,
+      'Plan Activation',
+      CONCAT('Activated ', @Round),
+      'Dr.',
+      CONCAT('TOPUP-', FORMAT(GETDATE(),'yyyyMMddHHmmss'))
+    )
+  `);
+
 
     // ================= MEMBER UPDATE =================
 
