@@ -526,3 +526,29 @@ export const checkRoundActive = async (
     });
   }
 };
+
+// ===============================
+// GET ALL ACTIVATED ROUNDS
+// ===============================
+
+export const getTopupHistory = async (req, res) => {
+  try {
+    const pool = await poolPromise;
+
+    const result = await pool.request().query(`
+      SELECT *
+      FROM TopUp
+      ORDER BY id DESC
+    `);
+
+    res.json({
+      success: true,
+      data: result.recordset,
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
