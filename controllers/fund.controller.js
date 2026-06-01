@@ -466,7 +466,28 @@ export const updateDepositStatus = async (req, res) => {
 
     const pool = await poolPromise;
 
-    await pool.request()
+    // ================= GET REQUEST =================
+    const depositResult = await pool
+      .request()
+      .input("id", sql.Int, id)
+      .query(`
+        SELECT *
+        FROM AddFundRequest
+        WHERE ID = @id
+      `);
+
+    const deposit = depositResult.recordset[0];
+
+    if (!deposit) {
+      return res.status(404).json({
+        success: false,
+        message: "Deposit request not found",
+      });
+    }
+
+    // ================= UPDATE STATUS =================
+    await pool
+      .request()
       .input("id", sql.Int, id)
       .input("status", sql.VarChar, status)
       .query(`
@@ -475,11 +496,47 @@ export const updateDepositStatus = async (req, res) => {
         WHERE ID = @id
       `);
 
+    // ================= LEDGER ENTRY =================
+    if (
+      status === "Approved" &&
+      deposit.Status !== "Approved"
+    ) {
+      await pool
+        .request()
+        .input("MID", sql.VarChar, deposit.MemberId)
+        .input("Amount", sql.Decimal(18, 2), deposit.Amount)
+        .query(`
+          INSERT INTO ledgers
+          (
+            MID,
+            Name,
+            pDate,
+            qty,
+            Amount,
+            type,
+            Remarks,
+            tType,
+            transID
+          )
+          SELECT
+            m.ConsumerID,
+            m.Name,
+            GETDATE(),
+            1,
+            @Amount,
+            'Fund Deposit',
+            'Fund Added By Admin',
+            'Cr.',
+            CONCAT('DEP-', ${id})
+          FROM Member_Details m
+          WHERE m.ConsumerID = @MID
+        `);
+    }
+
     return res.status(200).json({
       success: true,
       message: "Deposit status updated",
     });
-
   } catch (error) {
     console.log(error);
 
@@ -646,6 +703,40 @@ export const sendFund = async (req, res) => {
         )
       `);
 
+      // ================= LEDGER ENTRY =================
+await pool
+  .request()
+  .input("MID", sql.VarChar(50), MID)
+  .input("Name", sql.VarChar(100), memberData.Name || "")
+  .input("Amount", sql.Decimal(18, 2), Amount)
+  .input("TxnNo", sql.VarChar(100), transactionNo)
+  .query(`
+    INSERT INTO ledgers
+    (
+      MID,
+      Name,
+      pDate,
+      qty,
+      Amount,
+      type,
+      Remarks,
+      tType,
+      transID
+    )
+    VALUES
+    (
+      @MID,
+      @Name,
+      GETDATE(),
+      1,
+      @Amount,
+      'Fund Deposit',
+      'Fund Added By Admin',
+      'Cr.',
+      @TxnNo
+    )
+  `);
+
     return res.status(200).json({
       success: true,
       message: "Fund sent successfully",
@@ -694,6 +785,197 @@ export const getSendFundHistory = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Server Error",
+    });
+  }
+};
+
+export const sendFundByMember = async (req, res) => {
+  const { MID, MIDTo, Amount } = req.body;
+
+  try {
+    // ================= VALIDATION =================
+    if (!MID || !MIDTo || !Amount || isNaN(Number(Amount))) {
+      return res.json({
+        status: "INVALID",
+        message: "Invalid request",
+      });
+    }
+
+    const amount = Number(Amount);
+
+    if (amount < 10) {
+      return res.json({
+        status: "INVALID",
+        message: "Minimum 10$ Can be Transfer !!!",
+      });
+    }
+
+    if (amount % 10 !== 0) {
+      return res.json({
+        status: "INVALID",
+        message: "Payments are accepted in multiples of 10 only.",
+      });
+    }
+
+    const pool = await poolPromise;
+    const transaction = new sql.Transaction(pool);
+
+    await transaction.begin();
+
+    try {
+      // ================= SENDER CHECK =================
+      const senderResult = await transaction
+        .request()
+        .input("MID", sql.VarChar, MID)
+        .query(`
+          SELECT *
+          FROM Member_Details
+          WHERE ConsumerID = @MID
+        `);
+
+      const sender = senderResult.recordset[0];
+
+      if (!sender || sender.mStatus === "Block") {
+        await transaction.rollback();
+
+        return res.json({
+          status: "INVALID",
+          message: "Sender ID Blocked! Contact Support",
+        });
+      }
+
+     
+      // ================= RECEIVER CHECK =================
+      const receiverResult = await transaction
+        .request()
+        .input("MIDTo", sql.VarChar, MIDTo)
+        .query(`
+          SELECT *
+          FROM Member_Details
+          WHERE ConsumerID = @MIDTo
+        `);
+
+      const receiver = receiverResult.recordset[0];
+
+      if (!receiver || receiver.mStatus === "Block") {
+        await transaction.rollback();
+
+        return res.json({
+          status: "INVALID",
+          message: "Receiver ID Blocked! Contact Support",
+        });
+      }
+
+      // ================= WALLET CHECK =================
+ const walletResult = await new sql.Request(pool)
+        .input("userId", sql.VarChar, MID)
+        .execute("Get_MyFundWallet");
+
+      const wallet = walletResult.recordset[0];
+
+      if (!wallet || Number(wallet.Balance) < amount) {
+        await transaction.rollback();
+
+        return res.json({
+          status: "INVALID",
+          message: "Low Fund Wallet",
+        });
+      }
+
+      // ================= DEBIT LEDGER =================
+      await transaction
+        .request()
+        .input("MID", sql.VarChar, sender.ConsumerID)
+        .input("Name", sql.VarChar, sender.Name)
+        .input("Amount", sql.Decimal(18, 2), amount)
+        .input(
+          "Remarks",
+          sql.VarChar,
+          `Fund Sent to ${receiver.ConsumerID}`
+        )
+        .query(`
+          INSERT INTO ledger
+          (
+            MID,
+            Name,
+            pDate,
+            qty,
+            Amount,
+            type,
+            Remarks,
+            tType,
+            transID
+          )
+          VALUES
+          (
+            @MID,
+            @Name,
+            GETDATE(),
+            1,
+            @Amount,
+            'Wallet Sent',
+            @Remarks,
+            'Dr.',
+            'by Transfer'
+          )
+        `);
+
+      // ================= CREDIT LEDGER =================
+      await transaction
+        .request()
+        .input("MID", sql.VarChar, receiver.ConsumerID)
+        .input("Name", sql.VarChar, receiver.Name)
+        .input("Amount", sql.Decimal(18, 2), amount)
+        .input(
+          "Remarks",
+          sql.VarChar,
+          `Fund Received from ${sender.ConsumerID}`
+        )
+        .query(`
+          INSERT INTO ledger
+          (
+            MID,
+            Name,
+            pDate,
+            qty,
+            Amount,
+            type,
+            Remarks,
+            tType,
+            transID
+          )
+          VALUES
+          (
+            @MID,
+            @Name,
+            GETDATE(),
+            1,
+            @Amount,
+            'Wallet Received',
+            @Remarks,
+            'Cr.',
+            'by Transfer'
+          )
+        `);
+
+      await transaction.commit();
+
+      return res.json({
+        status: "SUCCESS",
+        message: "Fund Transfer Successful",
+      });
+    } catch (error) {
+      await transaction.rollback();
+
+      return res.json({
+        status: "FAILURE",
+        message: error.message,
+      });
+    }
+  } catch (error) {
+    return res.status(500).json({
+      status: "FAILURE",
+      message: error.message,
     });
   }
 };

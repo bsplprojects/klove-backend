@@ -12,6 +12,7 @@ const {
   memberReport,
   sendFund,
   getSendFundHistory,
+  sendFundByMember,
 } = require("../controllers/fund.controller");
 
 /* ================= MULTER ================= */
@@ -54,4 +55,6 @@ router.post("/update-status", updateDepositStatus);
 router.get("/member-report", memberReport);
 router.post("/send-fund", sendFund);
 router.get("/history", getSendFundHistory);
+router.post("/send-fund-by-member", sendFundByMember);
+
 module.exports = router;
