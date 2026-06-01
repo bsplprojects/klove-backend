@@ -1,187 +1,115 @@
 const sql = require("mssql");
 
-/* ================= TOPUP FROM SP ================= */
-async function getTopupAmount(userId, transaction) {
-  const result = await new sql.Request(transaction)
-    .input("UserId", sql.VarChar, userId)
-    .execute("Get_MyFundWallet");
-
-  const data = result.recordset || [];
-  return Number(data[0]?.Balance || 0);
-}
-
-/* ================= DOWNLINE COUNT ================= */
-async function getDownlineCount(MID, transaction) {
-  const result = await new sql.Request(transaction)
-    .input("MID", sql.VarChar, MID)
-    .query(`
-      WITH Downline AS (
-          SELECT ConsumerID
-          FROM Member_Details
-          WHERE ConsumerID = @MID
-
-          UNION ALL
-
-          SELECT m.ConsumerID
-          FROM Member_Details m
-          INNER JOIN Downline d ON m.SponsorId = d.ConsumerID
-      )
-      SELECT COUNT(*) - 1 AS TotalDownline
-      FROM Downline;
-    `);
-
-  return result.recordset[0]?.TotalDownline || 0;
-}
-
-/* ================= DIRECT COUNT ================= */
-async function getDirectCount(MID, transaction) {
-  const result = await new sql.Request(transaction)
-    .input("MID", sql.VarChar, MID)
-    .query(`
-      SELECT COUNT(*) AS cnt
-      FROM Member_Details
-      WHERE SponsorId = @MID
-    `);
-
-  return result.recordset[0]?.cnt || 0;
-}
-
-/* ================= LEVEL ELIGIBILITY ================= */
-async function checkLevelCondition(MID, level, transaction) {
-  const directCount = await getDirectCount(MID, transaction);
-  const downlineCount = await getDownlineCount(MID, transaction);
-
-  if (level === 1) return true;
-
-  if (level === 2) {
-    console.log(directCount, downlineCount);
-    return directCount >= 3 && downlineCount >= 2;
-  }
-
-  if (level === 3) {
-    return directCount >= 5 && downlineCount >= 10;
-  }
-
-  if (level === 4) {
-    return directCount >= 7 && downlineCount >= 23;
-  }
-
-  if (level >= 5 && level <= 10) {
-    return directCount >= 10 && downlineCount >= 40;
-  }
-
-  return false;
-}
-
-/* ================= MAIN PAYOUT ================= */
 async function levelPayout(MID, amt, transaction) {
   try {
+
+    // ===== USER =====
     const member = await new sql.Request(transaction)
       .input("MID", sql.VarChar, MID)
       .query(`
-        SELECT ConsumerID
+        SELECT ConsumerID, Name
         FROM Member_Details
         WHERE ConsumerID=@MID
       `);
 
     if (!member.recordset.length) return;
 
-    let SpID = member.recordset[0].ConsumerID;
-    let level = 0;
-    while (true) {
-      level++;
+    let currentMID = member.recordset[0].ConsumerID;
+    let fromName = member.recordset[0].Name || "";
 
-      if (level > 10) break;
+    // ===== LEVEL LOOP =====
+    for (let level = 1; level <= 10; level++) {
 
-      /* ===== GET SPONSOR ===== */
-      const sponsor = await new sql.Request(transaction)
-        .input("MID", sql.VarChar, SpID)
-        .query(`
-          SELECT SponsorId
-          FROM Member_Details
-          WHERE ConsumerID=@MID
-        `);
-      if (!sponsor.recordset.length) break;
+      // ===== MOVE UP LINE =====
+     const sponsorRes = await new sql.Request(transaction)
+  .input("MID", sql.VarChar, currentMID)
+  .query(`
+    SELECT SponsorId
+    FROM Member_Details
+    WHERE ConsumerID=@MID
+  `);
 
-      SpID = sponsor.recordset[0].SponsorId;
+const toMID = sponsorRes.recordset[0].SponsorId;
 
-      if (!SpID) break;
+if (!toMID) break;
 
-      /* ================= LEVEL VALIDATION ================= */
-      const isEligible = await checkLevelCondition(SpID, level, transaction);
-      if (!isEligible) continue;
+// 🔥 NOW GET SPONSOR NAME SEPARATELY
+const nameRes = await new sql.Request(transaction)
+  .input("MID", sql.VarChar, toMID)
+  .query(`
+    SELECT Name
+    FROM Member_Details
+    WHERE ConsumerID=@MID
+  `);
 
-      /* ================= LEVEL 1 SPECIAL RULE ================= */
-      if (level === 1) {
+const toName = nameRes.recordset[0]?.Name || "";
 
-        const selfTopup = await getTopupAmount(MID, transaction);
+      if (!toMID) break;
 
-        if (selfTopup < 100) continue;
+      currentMID = toMID;
 
-        const directList = await new sql.Request(transaction)
-          .input("MID", sql.VarChar, SpID)
-          .query(`
-            SELECT ConsumerID
-            FROM Member_Details
-            WHERE SponsorId=@MID
-          `);
-
-        let totalDirectTopup = 0;
-
-        for (let d of directList.recordset) {
-          const topup = await getTopupAmount(d.ConsumerID, transaction);
-          totalDirectTopup += topup;
-        }
-        if (totalDirectTopup < 100) continue;
-      }
-
-      /* ================= PERCENT RULE ================= */
+      // ===== LEVEL PERCENTAGE RULE =====
       let percent = 0;
 
-      if (level === 1) percent = 0.15;
-      else if (level === 2) percent = 0.10;
-      else if (level === 3) percent = 0.05;
-      else if (level === 4) percent = 0.04;
-      else if (level >= 5 && level <= 10) percent = 0.03;
+      if (level === 1) percent = 0.10;
+      else if (level === 2) percent = 0.05;
+      else if (level === 3) percent = 0.03;
+      else if (level === 4) percent = 0.02;
+      else percent = 0.01; // 5–10
 
-      const levelAmount = amt * percent;
+      const levelIncome = amt * percent;
 
-      if (levelAmount <= 0) continue;
-
-      /* ================= SPONSOR ACTIVE CHECK ================= */
-      const sponsorTopup = await getTopupAmount(SpID, transaction);
-      if (sponsorTopup <= 0) continue;
-
-      /* ================= INSERT COMMISSION ================= */
-      await new sql.Request(transaction)
-        .input("MID", sql.VarChar, SpID)
-        .input("FromMID", sql.VarChar, MID)
-        .input("Level", sql.Int, level)
-        .input("Amount", sql.Decimal(18, 2), levelAmount)
+      // ===== ACTIVE CHECK =====
+      const topup = await new sql.Request(transaction)
+        .input("MID", sql.VarChar, toMID)
         .query(`
-          INSERT INTO Comission
-          (
-            Payoutstartdate,
-            PayoutDate,
-            PayoutEnddate,
-            Consumerid,
-            Lavel,
-            lavelcosumied,
-            Levelincome,
-            PayoutType
-          )
-          VALUES
-          (
-            GETDATE(),
-            GETDATE(),
-            GETDATE(),
-            @MID,
-            @Level,
-            @FromMID,
-            @Amount,
-            'LEVEL'
-          )
+          SELECT TOP 1 MID
+          FROM TopUp
+          WHERE MID=@MID AND amount > 0
         `);
+
+      if (topup.recordset.length > 0) {
+
+        await new sql.Request(transaction)
+          .input("Consumerid", sql.VarChar, toMID)
+          .input("Name", sql.VarChar, toName)
+          .input("Level", sql.Int, level)
+          .input("FromMID", sql.VarChar, MID)
+          .input("TotalBV", sql.Decimal(18, 2), amt)
+          .input("Levelincome", sql.Decimal(18, 2), levelIncome)
+          .input("Totalmember", sql.Int, 1)
+          .query(`
+            INSERT INTO Comission
+            (
+              Payoutdate,
+              Payoutstartdate,
+              PayoutEnddate,
+              Consumerid,
+              Name,
+              Lavel,
+              lavelcosumied,
+              Totalbv,
+              Levelincome,
+              Totalmember,
+              PayoutType
+            )
+            VALUES
+            (
+              GETDATE(),
+              GETDATE(),
+              GETDATE(),
+              @Consumerid,
+              @Name,
+              @Level,
+              @FromMID,
+              @TotalBV,
+              @Levelincome,
+              @Totalmember,
+              'LEVEL'
+            )
+          `);
+      }
+
     }
 
   } catch (err) {

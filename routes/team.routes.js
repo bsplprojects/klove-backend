@@ -1,6 +1,6 @@
 const router = require("express").Router();
 
-const {showDirectTeam,memberDownlineDetailsWithLevel,activatePlan,checkRoundActive,getTopupHistory,getMyPlans} = require("../controllers/team.controller");
+const {showDirectTeam,memberDownlineDetailsWithLevel,activatePlan,checkRoundActive,getTopupHistory,getMyPlans,activatePlanController} = require("../controllers/team.controller");
 
 router.get("/direct-team/:userName", showDirectTeam);
 router.get("/downline-team/:userId", memberDownlineDetailsWithLevel);
@@ -12,4 +12,5 @@ router.get(
 
 router.get("/topup-history", getTopupHistory);
 router.get("/my-plans/:memberId", getMyPlans);
+
 module.exports = router;

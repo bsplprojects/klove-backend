@@ -1,5 +1,6 @@
 import sql from "mssql";
 import { poolPromise } from "../config/db.js";
+import levelPayout from "../Services/levelPayout.js";
 
 // ================= SHOW DIRECT TEAM =================
 export const showDirectTeam = async (req, res) => {
@@ -449,11 +450,13 @@ await pool
         UPDATE Member_Details
         SET
           mStatus = 'Active',
-          Price = @Price,
+          Price += @Price,
           Product_Name = @Product_Name,
           Joining_Comp_Level = @Joining_Comp_Level
         WHERE ConsumerID = @ConsumerID
       `);
+
+     await levelPayout(userId, investAmount);
 
     // ================= SUCCESS =================
 
@@ -626,3 +629,54 @@ export const getMyPlans = async (req, res) => {
     });
   }
 };
+
+
+
+// export const activatePlanController = async (req, res) => {
+//   const pool = await poolPromise;
+//   const transaction = new sql.Transaction(pool);
+
+//   try {
+//     await transaction.begin();
+
+//     const request = new sql.Request(transaction);
+
+//     // ================= GET ALL TOPUP ROWS =================
+//     const result = await request.query(`
+//       SELECT MID, amount
+//       FROM TopUp
+//     `);
+
+//     const topups = result.recordset;
+
+//     if (!topups.length) {
+//       throw new Error("No TopUp records found");
+//     }
+
+//     // ================= LOOP ALL ROWS =================
+//     for (const row of topups) {
+//       await levelPayout(row.MID, row.amount, transaction);
+//     }
+
+//     await transaction.commit();
+
+//     return res.json({
+//       success: true,
+//       message: "All TopUp rows processed successfully",
+//     });
+
+//   } catch (err) {
+//     console.log("Activate Error:", err);
+
+//     try {
+//       await transaction.rollback();
+//     } catch (e) {
+//       console.log("Rollback Error:", e.message);
+//     }
+
+//     return res.status(500).json({
+//       success: false,
+//       message: err.message,
+//     });
+//   }
+// };
