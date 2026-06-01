@@ -552,3 +552,77 @@ export const getTopupHistory = async (req, res) => {
     });
   }
 };
+
+// ===============================
+// GET ALL ACTIVATED ROUNDS
+// ===============================
+export const getMyPlans = async (req, res) => {
+  try {
+    const { memberId } = req.params;
+
+    const pool = await poolPromise;
+
+    // User Plans
+    const plansResult = await pool
+      .request()
+      .input("MID", sql.VarChar, memberId)
+      .query(`
+        SELECT *
+        FROM TopUp
+        WHERE MID = @MID
+        ORDER BY Id DESC
+      `);
+
+    // All Packages
+    const packageResult = await pool.request().query(`
+      SELECT
+        Id,
+        ProductCategory,
+        ProductSubCategory,
+        Description,
+        Price,
+        Image,
+        PV
+      FROM ProductSubcategory
+    `);
+
+    const packages = packageResult.recordset;
+
+    const data = plansResult.recordset.map((plan) => {
+      // Round 1 => 1
+      const roundNo = String(plan.pType || "")
+        .replace("Round", "")
+        .trim();
+
+      const pkg = packages.find(
+        (x) => String(x.ProductSubCategory).trim() === roundNo
+      );
+
+      return {
+        ...plan,
+
+        PackageId: pkg?.Id || null,
+        ProductCategory: pkg?.ProductCategory || null,
+        ProductSubCategory: pkg?.ProductSubCategory || null,
+        Description: pkg?.Description || null,
+        Price: pkg?.Price || null,
+        Image: pkg?.Image || null,
+        PV: pkg?.PV || null,
+      };
+    });
+
+    console.log(data);
+
+    res.json({
+      success: true,
+      data,
+    });
+  } catch (err) {
+    console.log(err);
+
+    res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
