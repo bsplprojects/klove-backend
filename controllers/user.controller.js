@@ -470,3 +470,193 @@ exports.getP2pLedgerReport = async (req, res) => {
     });
   }
 };
+
+exports.getCommissionHistoryAll = async (req, res) => {
+  try {
+    const pool = await poolPromise;
+
+    const result = await pool.request().query(`
+      SELECT TOP (100000)
+        c.[Id],
+        c.[Payoutdate],
+        c.[Payoutstartdate],
+        c.[PayoutEnddate],
+        c.[Consumerid],
+        c.[Name] AS ConsumerName,
+        c.[Lavel],
+        m.[Name] AS MemberName,
+        c.[lavelcosumied],
+        c.[Totalbv],
+        c.[Percent],
+        c.[Levelincome],
+        c.[Totalmember],
+        c.[PayoutType]
+      FROM [Comission] c
+      LEFT JOIN [member_details] m
+        ON c.[lavelcosumied] = m.[Consumerid]
+      ORDER BY c.[Payoutdate] DESC
+    `);
+
+    const rows = result.recordset;
+
+    // ================= TOTAL INCOME =================
+    const totalIncome = rows.reduce(
+      (sum, item) => sum + Number(item.Levelincome || 0),
+      0
+    );
+
+    return res.json({
+      success: true,
+      summary: {
+        totalRecords: rows.length,
+        totalIncome,
+      },
+      data: rows,
+    });
+
+  } catch (err) {
+    console.log("Commission Error:", err);
+
+    return res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
+
+exports.getGrowthIncomeHistoryAll = async (req, res) => {
+  try {
+    const pool = await poolPromise;
+
+    const result = await pool.request().query(`
+      SELECT TOP (100000)
+        [ID],
+        [MID],
+        [Name],
+        [pDate],
+        [Day],
+        [Amount],
+        [ServiceCharge],
+        [TDS],
+        [NetAmount],
+        [Status],
+        [HashID],
+        [USDT],
+        [Pol]
+      FROM [Growth_Income]
+      ORDER BY [pDate] DESC
+    `);
+
+    const rows = result.recordset;
+
+    // ================= SUMMARY =================
+    const totalGross = rows.reduce(
+      (sum, item) => sum + Number(item.Amount || 0),
+      0
+    );
+
+    const totalNet = rows.reduce(
+      (sum, item) => sum + Number(item.NetAmount || 0),
+      0
+    );
+
+    const totalTDS = rows.reduce(
+      (sum, item) => sum + Number(item.TDS || 0),
+      0
+    );
+
+    const totalService = rows.reduce(
+      (sum, item) => sum + Number(item.ServiceCharge || 0),
+      0
+    );
+
+    const paid = rows.filter((x) => x.Status === "Paid").length;
+    const pending = rows.filter((x) => x.Status !== "Paid").length;
+
+    return res.json({
+      success: true,
+      summary: {
+        totalRecords: rows.length,
+        totalGross,
+        totalNet,
+        totalTDS,
+        totalService,
+        paid,
+        pending,
+      },
+      data: rows,
+    });
+
+  } catch (err) {
+    console.log("Growth Income Error:", err);
+
+    return res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
+
+exports.getP2pLedgerReportAll = async (req, res) => {
+  try {
+    const pool = await poolPromise;
+
+    const result = await pool.request().query(`
+      SELECT TOP (100000)
+        l.[ID],
+        l.[MID],
+        m.[Name],
+        l.[pDate],
+        l.[qty],
+        l.[Amount],
+        l.[type],
+        l.[Remarks],
+        l.[tType],
+        l.[transID],
+        l.[cRate],
+        l.[TRX],
+        l.[bal]
+      FROM [ledger] l
+      LEFT JOIN [member_details] m
+        ON l.[MID] = m.[Consumerid]
+      WHERE l.transID = 'by Transfer'
+      ORDER BY l.pDate DESC
+    `);
+
+    const rows = result.recordset;
+
+    // ================= SUMMARY =================
+    const totalAmount = rows.reduce(
+      (sum, item) => sum + Number(item.Amount || 0),
+      0
+    );
+
+    const totalQty = rows.reduce(
+      (sum, item) => sum + Number(item.qty || 0),
+      0
+    );
+
+    const credit = rows.filter((x) => x.tType === "Credit").length;
+    const debit = rows.filter((x) => x.tType === "Debit").length;
+
+    return res.json({
+      success: true,
+      summary: {
+        totalRecords: rows.length,
+        totalAmount: Number(totalAmount.toFixed(2)),
+        totalQty: Number(totalQty.toFixed(2)),
+        credit,
+        debit,
+      },
+      data: rows,
+    });
+
+  } catch (err) {
+    console.log("Ledger Error:", err);
+
+    return res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};

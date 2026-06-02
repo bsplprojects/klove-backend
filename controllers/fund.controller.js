@@ -324,7 +324,6 @@ export const repFundDeposit = async (req, res) => {
   try {
     let {
       MID,
-      Name,
       Amount,
       tNo,
       Method,
@@ -334,7 +333,6 @@ export const repFundDeposit = async (req, res) => {
       Bank,
     } = req.body;
 
-    // ================= FIX =================
     if (typeof MID === "object" && MID !== null) {
       MID = MID.MID;
     }
@@ -359,10 +357,29 @@ export const repFundDeposit = async (req, res) => {
 
     const pool = await poolPromise;
 
+    // ================= GET MEMBER NAME =================
+    const memberResult = await pool.request()
+      .input("MID", sql.VarChar(50), MID)
+      .query(`
+        SELECT TOP 1 Name
+        FROM Member_Details
+        WHERE ConsumerID = @MID
+      `);
+
+    if (memberResult.recordset.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Member not found",
+      });
+    }
+
+    const Name = memberResult.recordset[0].Name;
+
+    // ================= INSERT REQUEST =================
     await pool.request()
       .input("MID", sql.VarChar(50), MID)
-      .input("Name", sql.VarChar(100), Name || "")
-      .input("Amount", sql.Decimal(18,2), Amount)
+      .input("Name", sql.VarChar(100), Name)
+      .input("Amount", sql.Decimal(18, 2), Amount)
       .input("tNo", sql.VarChar(100), tNo)
       .input("ImageUrl", sql.VarChar(500), imageUrl)
       .input("Method", sql.VarChar(100), Method || "")

@@ -1,6 +1,6 @@
 import sql from "mssql";
 import { poolPromise } from "../config/db.js";
-import levelPayout from "../Services/levelPayout.js";
+import levelPayout from "../services/levelPayout.js";
 
 // ================= SHOW DIRECT TEAM =================
 export const showDirectTeam = async (req, res) => {
