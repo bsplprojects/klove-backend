@@ -1,33 +1,26 @@
-import sql from "mssql";
-import crypto from "crypto";
-import { poolPromise } from "../config/db.js";
-import dayjs from "dayjs";
-import utc from "dayjs/plugin/utc.js";
-import timezone from "dayjs/plugin/timezone.js";
-import levelPayout from "../services/levelPayout.js";
-import { updateMyRank } from "../services/updateMyRank.js";
-import { CONNREFUSED } from "dns";
+const sql = require("mssql");
+const crypto = require("crypto");
+const { poolPromise } = require("../config/db");
+const dayjs = require("dayjs");
+
+const utc = require("dayjs/plugin/utc");
+const timezone = require("dayjs/plugin/timezone");
+
+const levelPayout = require("../services/levelPayout");
+const { updateMyRank } = require("../services/updateMyRank");
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-export const addFundDeposit = async (req, res) => {
+const addFundDeposit = async (req, res) => {
   const pool = await poolPromise;
   const transaction = new sql.Transaction(pool);
 
   try {
     await transaction.begin();
 
-    const {
-      userAddress,
-      asset,
-      amount,
-      txHash,
-      status,
-      MID,
-      Name,
-      pType,
-    } = req.body;
+    const { userAddress, asset, amount, txHash, status, MID, Name, pType } =
+      req.body;
 
     if (!userAddress || !amount || !txHash || !MID) {
       await transaction.rollback();
@@ -40,16 +33,17 @@ export const addFundDeposit = async (req, res) => {
 
     // ================= DUPLICATE CHECK =================
 
-    const duplicateCheck = await new sql.Request(transaction)
-      .input("TxHash", sql.VarChar, txHash)
-      .query(`
+    const duplicateCheck = await new sql.Request(transaction).input(
+      "TxHash",
+      sql.VarChar,
+      txHash,
+    ).query(`
         SELECT TOP 1 id
         FROM TopUp
         WHERE TxHash = @TxHash
       `);
 
     if (duplicateCheck.recordset.length > 0) {
-
       await transaction.rollback();
 
       return res.status(400).json({
@@ -62,8 +56,7 @@ export const addFundDeposit = async (req, res) => {
 
     await new sql.Request(transaction)
       .input("MID", sql.VarChar, MID)
-      .input("Amount", sql.Decimal(18, 2), amount)
-      .query(`
+      .input("Amount", sql.Decimal(18, 2), amount).query(`
         UPDATE Member_Details
         SET 
           mStatus = 'Active',
@@ -84,8 +77,7 @@ export const addFundDeposit = async (req, res) => {
       .input("Coin", sql.Int, 1)
       .input("Status", sql.VarChar, status || "Credited")
       .input("UserAddress", sql.VarChar, userAddress)
-      .input("TxHash", sql.VarChar, txHash)
-      .query(`
+      .input("TxHash", sql.VarChar, txHash).query(`
         INSERT INTO TopUp
         (
           MID,
@@ -124,21 +116,21 @@ export const addFundDeposit = async (req, res) => {
 
     // ================= CHECK MEMBER_DETAILS RANK =================
 
-    const memberRank = await new sql.Request(pool)
-      .input("MID", sql.VarChar, MID)
-      .query(`
+    const memberRank = await new sql.Request(pool).input(
+      "MID",
+      sql.VarChar,
+      MID,
+    ).query(`
         SELECT Product_Name, SponsorId
         FROM Member_Details
         WHERE ConsumerID = @MID
       `);
 
-    const achievedRank =
-      memberRank.recordset[0]?.Product_Name || "";
+    const achievedRank = memberRank.recordset[0]?.Product_Name || "";
 
     // ================= DIRECT CHECK =================
 
     if (achievedRank !== "") {
-
       const SID = memberRank.recordset[0]?.SponsorId;
 
       // ================= SPONSOR WALLET =================
@@ -148,10 +140,7 @@ export const addFundDeposit = async (req, res) => {
         .execute("Get_MemberDashboard");
 
       if (walletResult.recordset.length > 0) {
-
-        let wallet = Number(
-          walletResult.recordset[0].TotalIncome || 0
-        );
+        let wallet = Number(walletResult.recordset[0].TotalIncome || 0);
 
         // ================= PERCENTAGE =================
 
@@ -159,11 +148,9 @@ export const addFundDeposit = async (req, res) => {
 
         if (achievedRank === "DIRECT") {
           percent = 3;
-        }
-        else if (achievedRank === "OX1") {
+        } else if (achievedRank === "OX1") {
           percent = 2;
-        }
-        else if (achievedRank === "OX2") {
+        } else if (achievedRank === "OX2") {
           percent = 1;
         }
 
@@ -173,27 +160,26 @@ export const addFundDeposit = async (req, res) => {
 
         // ================= SPONSOR NAME =================
 
-        const sponsorData = await new sql.Request(pool)
-          .input("MID", sql.VarChar, SID)
-          .query(`
+        const sponsorData = await new sql.Request(pool).input(
+          "MID",
+          sql.VarChar,
+          SID,
+        ).query(`
             SELECT Name
             FROM Member_Details
             WHERE ConsumerID = @MID
           `);
 
-        const sponsorName =
-          sponsorData.recordset[0]?.Name || "";
+        const sponsorName = sponsorData.recordset[0]?.Name || "";
 
         // ================= INSERT INCOME =================
 
         if (income > 0) {
-
           await new sql.Request(pool)
             .input("MID", sql.VarChar, MID)
             .input("Name", sql.VarChar, sponsorName)
             .input("LevelId", sql.VarChar, SID)
-            .input("Amount", sql.Decimal(18, 2), income)
-            .query(`
+            .input("Amount", sql.Decimal(18, 2), income).query(`
               INSERT INTO SingleLegIncome
               (
                 MID,
@@ -218,9 +204,7 @@ export const addFundDeposit = async (req, res) => {
               )
             `);
 
-          console.log(
-            `${SID} got ${income} single leg income`
-          );
+          console.log(`${SID} got ${income} single leg income`);
         }
       }
     }
@@ -229,19 +213,14 @@ export const addFundDeposit = async (req, res) => {
       success: true,
       message: "TopUp deposit saved successfully",
     });
-
   } catch (err) {
-
     console.error("TopUp insert error:", err);
 
     try {
-
       if (transaction._aborted !== true) {
         await transaction.rollback();
       }
-
     } catch (rollbackErr) {
-
       console.log("Rollback error:", rollbackErr);
     }
 
@@ -252,9 +231,9 @@ export const addFundDeposit = async (req, res) => {
   }
 };
 
-export const getDepositReportByMID = async (req, res) => {
+const getDepositReportByMID = async (req, res) => {
   try {
-   const { MID } = req.params;
+    const { MID } = req.params;
 
     if (!MID) {
       return res.status(400).json({
@@ -266,9 +245,7 @@ export const getDepositReportByMID = async (req, res) => {
     const pool = await poolPromise;
 
     // ================= MAIN DATA =================
-    const data = await pool.request()
-      .input("MID", sql.VarChar, MID)
-      .query(`
+    const data = await pool.request().input("MID", sql.VarChar, MID).query(`
         SELECT 
           ID,
           MID,
@@ -289,9 +266,7 @@ export const getDepositReportByMID = async (req, res) => {
       `);
 
     // ================= SUMMARY =================
-    const summary = await pool.request()
-      .input("MID", sql.VarChar, MID)
-      .query(`
+    const summary = await pool.request().input("MID", sql.VarChar, MID).query(`
         SELECT 
           COUNT(*) AS totalRequests,
           SUM(CAST(Amount AS DECIMAL(18,2))) AS totalAmount,
@@ -307,7 +282,6 @@ export const getDepositReportByMID = async (req, res) => {
       data: data.recordset,
       summary: summary.recordset[0],
     });
-
   } catch (error) {
     console.log("Report API Error:", error);
 
@@ -320,18 +294,9 @@ export const getDepositReportByMID = async (req, res) => {
 
 /* ================= ADD FUND DEPOSIT ================= */
 
-export const repFundDeposit = async (req, res) => {
+const repFundDeposit = async (req, res) => {
   try {
-    let {
-      MID,
-      Amount,
-      tNo,
-      Method,
-      Remark,
-      Type,
-      Refrence,
-      Bank,
-    } = req.body;
+    let { MID, Amount, tNo, Method, Remark, Type, Refrence, Bank } = req.body;
 
     if (typeof MID === "object" && MID !== null) {
       MID = MID.MID;
@@ -351,15 +316,12 @@ export const repFundDeposit = async (req, res) => {
       });
     }
 
-    const imageUrl = req.file
-      ? `/uploads/${req.file.filename}`
-      : "";
+    const imageUrl = req.file ? `/uploads/${req.file.filename}` : "";
 
     const pool = await poolPromise;
 
     // ================= GET MEMBER NAME =================
-    const memberResult = await pool.request()
-      .input("MID", sql.VarChar(50), MID)
+    const memberResult = await pool.request().input("MID", sql.VarChar(50), MID)
       .query(`
         SELECT TOP 1 Name
         FROM Member_Details
@@ -376,7 +338,8 @@ export const repFundDeposit = async (req, res) => {
     const Name = memberResult.recordset[0].Name;
 
     // ================= INSERT REQUEST =================
-    await pool.request()
+    await pool
+      .request()
       .input("MID", sql.VarChar(50), MID)
       .input("Name", sql.VarChar(100), Name)
       .input("Amount", sql.Decimal(18, 2), Amount)
@@ -386,8 +349,7 @@ export const repFundDeposit = async (req, res) => {
       .input("Remark", sql.VarChar(500), Remark || "")
       .input("Type", sql.VarChar(100), Type || "")
       .input("Refrence", sql.VarChar(100), Refrence || "")
-      .input("Bank", sql.VarChar(100), Bank || "")
-      .query(`
+      .input("Bank", sql.VarChar(100), Bank || "").query(`
         INSERT INTO AddFundRequest
         (
           MID,
@@ -424,7 +386,6 @@ export const repFundDeposit = async (req, res) => {
       success: true,
       message: "Deposit request submitted successfully",
     });
-
   } catch (error) {
     console.log(error);
 
@@ -437,7 +398,7 @@ export const repFundDeposit = async (req, res) => {
 
 /* ================= GET ALL DEPOSITS ================= */
 
-export const getAllDeposits = async (req, res) => {
+const getAllDeposits = async (req, res) => {
   try {
     const pool = await poolPromise;
 
@@ -464,7 +425,6 @@ export const getAllDeposits = async (req, res) => {
       success: true,
       data: result.recordset,
     });
-
   } catch (error) {
     console.log("getAllDeposits error:", error);
 
@@ -477,17 +437,14 @@ export const getAllDeposits = async (req, res) => {
 
 /* ================= UPDATE STATUS ================= */
 
-export const updateDepositStatus = async (req, res) => {
+const updateDepositStatus = async (req, res) => {
   try {
     const { id, status } = req.body;
 
     const pool = await poolPromise;
 
     // ================= GET REQUEST =================
-    const depositResult = await pool
-      .request()
-      .input("id", sql.Int, id)
-      .query(`
+    const depositResult = await pool.request().input("id", sql.Int, id).query(`
         SELECT *
         FROM AddFundRequest
         WHERE ID = @id
@@ -506,25 +463,20 @@ export const updateDepositStatus = async (req, res) => {
     await pool
       .request()
       .input("id", sql.Int, id)
-      .input("status", sql.VarChar, status)
-      .query(`
+      .input("status", sql.VarChar, status).query(`
         UPDATE AddFundRequest
         SET Status = @status
         WHERE ID = @id
       `);
 
     // ================= LEDGER ENTRY =================
-    if (
-      status === "Approved" &&
-      deposit.Status !== "Approved"
-    ) {
+    if (status === "Approved" && deposit.Status !== "Approved") {
       console.log("Deposit:", deposit);
 
       // Get Member Details
       const memberResult = await pool
         .request()
-        .input("MID", sql.VarChar, deposit.MID)
-        .query(`
+        .input("MID", sql.VarChar, deposit.MID).query(`
           SELECT TOP 1 *
           FROM Member_Details
           WHERE ConsumerID = @MID
@@ -538,8 +490,7 @@ export const updateDepositStatus = async (req, res) => {
           .input("MID", sql.VarChar, deposit.MID)
           .input("Name", sql.VarChar, member.Name || "")
           .input("Amount", sql.Decimal(18, 2), deposit.Amount)
-          .input("transID", sql.VarChar, `DEP-${id}`)
-          .query(`
+          .input("transID", sql.VarChar, `DEP-${id}`).query(`
             INSERT INTO ledger
             (
               MID,
@@ -586,7 +537,7 @@ export const updateDepositStatus = async (req, res) => {
   }
 };
 
-export const memberReport = async (req, res) => {
+const memberReport = async (req, res) => {
   try {
     const pool = await poolPromise;
 
@@ -615,7 +566,8 @@ export const memberReport = async (req, res) => {
     `);
 
     // ✅ NEW REQUEST FOR DATA
-    const dataRequest = pool.request()
+    const dataRequest = pool
+      .request()
       .input("offset", offset)
       .input("limit", limit);
 
@@ -651,7 +603,6 @@ export const memberReport = async (req, res) => {
       limit,
       members: dataResult.recordset,
     });
-
   } catch (err) {
     console.log("MEMBER REPORT ERROR:", err);
     return res.status(500).json({
@@ -661,7 +612,7 @@ export const memberReport = async (req, res) => {
   }
 };
 
-export const sendFund = async (req, res) => {
+const sendFund = async (req, res) => {
   try {
     const { MID, Amount, Remark } = req.body;
 
@@ -675,9 +626,7 @@ export const sendFund = async (req, res) => {
     const pool = await poolPromise;
 
     // Member Check
-    const member = await pool
-      .request()
-      .input("MID", sql.VarChar(50), MID)
+    const member = await pool.request().input("MID", sql.VarChar(50), MID)
       .query(`
         SELECT TOP 1 *
         FROM Member_Details
@@ -694,16 +643,10 @@ export const sendFund = async (req, res) => {
     const memberData = member.recordset[0];
 
     // Random Transaction No
-    const transactionNo =
-      "SF" +
-      Date.now() +
-      Math.floor(Math.random() * 9999);
+    const transactionNo = "SF" + Date.now() + Math.floor(Math.random() * 9999);
 
     // Random Hash
-    const hashId = crypto
-      .randomBytes(8)
-      .toString("hex")
-      .toUpperCase();
+    const hashId = crypto.randomBytes(8).toString("hex").toUpperCase();
 
     await pool
       .request()
@@ -712,8 +655,7 @@ export const sendFund = async (req, res) => {
       .input("Amount", sql.Decimal(18, 2), Amount)
       .input("tNo", sql.VarChar(100), transactionNo)
       .input("Remark", sql.VarChar(500), Remark || "")
-      .input("HashId", sql.VarChar(100), hashId)
-      .query(`
+      .input("HashId", sql.VarChar(100), hashId).query(`
         INSERT INTO AddFundRequest
         (
           MID,
@@ -742,14 +684,13 @@ export const sendFund = async (req, res) => {
         )
       `);
 
-      // ================= LEDGER ENTRY =================
-await pool
-  .request()
-  .input("MID", sql.VarChar(50), MID)
-  .input("Name", sql.VarChar(100), memberData.Name || "")
-  .input("Amount", sql.Decimal(18, 2), Amount)
-  .input("TxnNo", sql.VarChar(100), transactionNo)
-  .query(`
+    // ================= LEDGER ENTRY =================
+    await pool
+      .request()
+      .input("MID", sql.VarChar(50), MID)
+      .input("Name", sql.VarChar(100), memberData.Name || "")
+      .input("Amount", sql.Decimal(18, 2), Amount)
+      .input("TxnNo", sql.VarChar(100), transactionNo).query(`
     INSERT INTO ledger
     (
       MID,
@@ -792,7 +733,7 @@ await pool
   }
 };
 
-export const getSendFundHistory = async (req, res) => {
+const getSendFundHistory = async (req, res) => {
   try {
     const pool = await poolPromise;
 
@@ -828,7 +769,7 @@ export const getSendFundHistory = async (req, res) => {
   }
 };
 
-export const sendFundByMember = async (req, res) => {
+const sendFundByMember = async (req, res) => {
   const { MID, MIDTo, Amount } = req.body;
 
   try {
@@ -865,8 +806,7 @@ export const sendFundByMember = async (req, res) => {
       // ================= SENDER CHECK =================
       const senderResult = await transaction
         .request()
-        .input("MID", sql.VarChar, MID)
-        .query(`
+        .input("MID", sql.VarChar, MID).query(`
           SELECT *
           FROM Member_Details
           WHERE ConsumerID = @MID
@@ -883,12 +823,10 @@ export const sendFundByMember = async (req, res) => {
         });
       }
 
-     
       // ================= RECEIVER CHECK =================
       const receiverResult = await transaction
         .request()
-        .input("MIDTo", sql.VarChar, MIDTo)
-        .query(`
+        .input("MIDTo", sql.VarChar, MIDTo).query(`
           SELECT *
           FROM Member_Details
           WHERE ConsumerID = @MIDTo
@@ -906,7 +844,7 @@ export const sendFundByMember = async (req, res) => {
       }
 
       // ================= WALLET CHECK =================
- const walletResult = await new sql.Request(pool)
+      const walletResult = await new sql.Request(pool)
         .input("userId", sql.VarChar, MID)
         .execute("Get_MyFundWallet");
 
@@ -927,11 +865,7 @@ export const sendFundByMember = async (req, res) => {
         .input("MID", sql.VarChar, sender.ConsumerID)
         .input("Name", sql.VarChar, sender.Name)
         .input("Amount", sql.Decimal(18, 2), amount)
-        .input(
-          "Remarks",
-          sql.VarChar,
-          `Fund Sent to ${receiver.ConsumerID}`
-        )
+        .input("Remarks", sql.VarChar, `Fund Sent to ${receiver.ConsumerID}`)
         .query(`
           INSERT INTO ledger
           (
@@ -968,9 +902,8 @@ export const sendFundByMember = async (req, res) => {
         .input(
           "Remarks",
           sql.VarChar,
-          `Fund Received from ${sender.ConsumerID}`
-        )
-        .query(`
+          `Fund Received from ${sender.ConsumerID}`,
+        ).query(`
           INSERT INTO ledger
           (
             MID,
@@ -1019,3 +952,14 @@ export const sendFundByMember = async (req, res) => {
   }
 };
 
+module.exports = {
+  addFundDeposit,
+  getDepositReportByMID,
+  repFundDeposit,
+  getAllDeposits,
+  updateDepositStatus,
+  memberReport,
+  sendFund,
+  getSendFundHistory,
+  sendFundByMember,
+};

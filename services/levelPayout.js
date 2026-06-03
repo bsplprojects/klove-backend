@@ -1,15 +1,12 @@
-import sql from "mssql";
-import { poolPromise } from "../config/db.js";
+const sql = require("mssql");
+const { poolPromise } = require("../config/db");
 
 const levelPayout = async (MID, amt) => {
   try {
     const pool = await poolPromise;
 
     // ===== USER DETAILS =====
-    const member = await pool
-      .request()
-      .input("MID", sql.VarChar, MID)
-      .query(`
+    const member = await pool.request().input("MID", sql.VarChar, MID).query(`
         SELECT ConsumerID, Name
         FROM Member_Details
         WHERE ConsumerID = @MID
@@ -24,8 +21,7 @@ const levelPayout = async (MID, amt) => {
       // ===== FIND SPONSOR =====
       const sponsorRes = await pool
         .request()
-        .input("MID", sql.VarChar, currentMID)
-        .query(`
+        .input("MID", sql.VarChar, currentMID).query(`
           SELECT SponsorId
           FROM Member_Details
           WHERE ConsumerID = @MID
@@ -41,9 +37,7 @@ const levelPayout = async (MID, amt) => {
       currentMID = toMID;
 
       // ===== GET SPONSOR NAME =====
-      const nameRes = await pool
-        .request()
-        .input("MID", sql.VarChar, toMID)
+      const nameRes = await pool.request().input("MID", sql.VarChar, toMID)
         .query(`
           SELECT Name
           FROM Member_Details
@@ -75,9 +69,7 @@ const levelPayout = async (MID, amt) => {
       const levelIncome = Number(amt) * percent;
 
       // ===== ACTIVE MEMBER CHECK =====
-      const topup = await pool
-        .request()
-        .input("MID", sql.VarChar, toMID)
+      const topup = await pool.request().input("MID", sql.VarChar, toMID)
         .query(`
           SELECT TOP 1 MID
           FROM TopUp
@@ -97,8 +89,7 @@ const levelPayout = async (MID, amt) => {
         .input("FromMID", sql.VarChar, MID)
         .input("TotalBV", sql.Decimal(18, 2), Number(amt))
         .input("Levelincome", sql.Decimal(18, 2), levelIncome)
-        .input("Totalmember", sql.Int, 1)
-        .query(`
+        .input("Totalmember", sql.Int, 1).query(`
           INSERT INTO Comission
           (
             Payoutdate,
@@ -130,7 +121,7 @@ const levelPayout = async (MID, amt) => {
         `);
 
       console.log(
-        `Level ${level} Income Added | To: ${toMID} | Amount: ${levelIncome}`
+        `Level ${level} Income Added | To: ${toMID} | Amount: ${levelIncome}`,
       );
     }
   } catch (err) {
@@ -138,5 +129,4 @@ const levelPayout = async (MID, amt) => {
     throw err;
   }
 };
-
-export default levelPayout;
+module.exports = { levelPayout };

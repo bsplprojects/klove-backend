@@ -1,6 +1,6 @@
-import { ethers } from "ethers";
-import sql from "mssql";
-import { poolPromise } from "../config/db.js";
+const { ethers } = require("ethers");
+const sql = require("mssql");
+const { poolPromise } = require("../config/db");
 
 // Polygon USDT Contract
 const USDT_ADDRESS = "0xc2132D05D31c914a87C6611C10748AEb04B58e8F";
@@ -10,7 +10,7 @@ const USDT_ABI = [
   "function balanceOf(address owner) view returns (uint256)",
 ];
 
-export const withdrawalRequest = async (req, res) => {
+const withdrawalRequest = async (req, res) => {
   let pool;
   let transaction;
 
@@ -543,7 +543,7 @@ export const withdrawalRequest = async (req, res) => {
 // TRANSFER FUND WALLET -> TRADE WALLET
 // ============================================
 
-export const transferToTradeWallet = async (req, res) => {
+const transferToTradeWallet = async (req, res) => {
   let transaction;
 
   try {
@@ -656,7 +656,7 @@ export const transferToTradeWallet = async (req, res) => {
 // TRANSFER HISTORY
 // ============================================
 
-export const getTradeWalletTransferHistory = async (req, res) => {
+const getTradeWalletTransferHistory = async (req, res) => {
   const { MID } = req.query;
 
   try {
@@ -688,7 +688,7 @@ export const getTradeWalletTransferHistory = async (req, res) => {
   }
 };
 
-export const withdrawRequest = async (req, res) => {
+const withdrawRequest = async (req, res) => {
   let transaction;
 
   try {
@@ -806,4 +806,11 @@ export const withdrawRequest = async (req, res) => {
       message: "Server Error",
     });
   }
+};
+
+module.exports = {
+  withdrawRequest,
+  getTradeWalletTransferHistory,
+  transferToTradeWallet,
+  withdrawalRequest,
 };

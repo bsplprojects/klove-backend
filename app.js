@@ -32,12 +32,7 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use(
   cors({
-    origin: [
-      "http://localhost:5173",
-      "https://backend.jbmglobal.pro",
-      "https://jbmglobal.pro",
-      "https://www.jbmglobal.pro",
-    ],
+    origin: ["http://localhost:5173"],
     credentials: true,
   }),
 );

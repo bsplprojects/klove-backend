@@ -1,10 +1,10 @@
-import sql from "mssql";
-import crypto from "crypto";
-import { poolPromise } from "../config/db.js";
-import dayjs from "dayjs";
-import utc from "dayjs/plugin/utc.js";
-import timezone from "dayjs/plugin/timezone.js";
+const sql = require("mssql");
+const crypto = require("crypto");
+const { poolPromise } = require("../config/db");
+const dayjs = require("dayjs");
 
+const utc = require("dayjs/plugin/utc");
+const timezone = require("dayjs/plugin/timezone");
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
@@ -17,7 +17,7 @@ const generateHashID = () => {
   return `MIN-${Date.now().toString().slice(-6)}-${random}`;
 };
 
-export const startMining = async (req, res) => {
+const startMining = async (req, res) => {
   const pool = await poolPromise;
   const transaction = new sql.Transaction(pool);
 
@@ -37,9 +37,11 @@ export const startMining = async (req, res) => {
     // CHECK LAST MINING (24 HOURS)
     // ===============================
 
-    const check = await new sql.Request(transaction)
-      .input("MID", sql.VarChar, MID)
-      .query(`
+    const check = await new sql.Request(transaction).input(
+      "MID",
+      sql.VarChar,
+      MID,
+    ).query(`
         SELECT TOP 1 pDate
         FROM Growth_Income
         WHERE MID=@MID
@@ -49,19 +51,14 @@ export const startMining = async (req, res) => {
     if (check.recordset.length > 0) {
       const lastDate = new Date(check.recordset[0].pDate);
 
-      const diff =
-        (Date.now() - lastDate.getTime()) /
-        (1000 * 60 * 60);
+      const diff = (Date.now() - lastDate.getTime()) / (1000 * 60 * 60);
 
       if (diff < 24) {
-
         await transaction.rollback();
 
         return res.status(400).json({
           success: false,
-          message: `You can start mining after ${(
-            24 - diff
-          ).toFixed(2)} hours`,
+          message: `You can start mining after ${(24 - diff).toFixed(2)} hours`,
         });
       }
     }
@@ -70,16 +67,17 @@ export const startMining = async (req, res) => {
     // GET USER
     // ===============================
 
-    const user = await new sql.Request(transaction)
-      .input("MID", sql.VarChar, MID)
-      .query(`
+    const user = await new sql.Request(transaction).input(
+      "MID",
+      sql.VarChar,
+      MID,
+    ).query(`
         SELECT Name
         FROM Member_Details
         WHERE ConsumerID=@MID
       `);
 
     if (!user.recordset.length) {
-
       await transaction.rollback();
 
       return res.status(404).json({
@@ -99,7 +97,6 @@ export const startMining = async (req, res) => {
       .execute("Get_MyFundWallet");
 
     if (!dashboard.recordset?.length) {
-
       await transaction.rollback();
 
       return res.status(400).json({
@@ -108,14 +105,11 @@ export const startMining = async (req, res) => {
       });
     }
 
-    const topupWallet =
-      Number(dashboard.recordset[0].Balance || 0);
+    const topupWallet = Number(dashboard.recordset[0].Balance || 0);
 
-    const totalInvestment =
-      Number(tradeWallet || 0);
+    const totalInvestment = Number(tradeWallet || 0);
 
     if (totalInvestment <= 0) {
-
       await transaction.rollback();
 
       return res.status(400).json({
@@ -144,16 +138,11 @@ export const startMining = async (req, res) => {
       .input("Name", sql.VarChar, name)
       .input("HashID", sql.VarChar, hashID)
       .input("Amount", sql.Decimal(18, 2), amount)
-      .input(
-        "ServiceCharge",
-        sql.Decimal(18, 2),
-        serviceCharge
-      )
+      .input("ServiceCharge", sql.Decimal(18, 2), serviceCharge)
       .input("TDS", sql.Decimal(18, 2), tds)
       .input("NetAmount", sql.Decimal(18, 2), netAmount)
       .input("USDTAmount", sql.Decimal(18, 2), topupWallet)
-      .input("PolAmount", sql.Decimal(18, 2), totalInvestment)
-      .query(`
+      .input("PolAmount", sql.Decimal(18, 2), totalInvestment).query(`
         INSERT INTO Growth_Income
         (
           MID,Name,HashID,pDate,Day,
@@ -187,9 +176,7 @@ export const startMining = async (req, res) => {
       miningAmount: amount,
       lastMiningTime: new Date(),
     });
-
   } catch (error) {
-
     // IMPORTANT FIX
     if (transaction._aborted !== true) {
       try {
@@ -206,7 +193,7 @@ export const startMining = async (req, res) => {
   }
 };
 // ================= MINING STATUS =================
-export const getMiningStatus = async (req, res) => {
+const getMiningStatus = async (req, res) => {
   try {
     const { MID } = req.params;
 
@@ -219,10 +206,7 @@ export const getMiningStatus = async (req, res) => {
 
     const pool = await poolPromise;
 
-    const result = await pool
-      .request()
-      .input("MID", sql.VarChar, MID)
-      .query(`
+    const result = await pool.request().input("MID", sql.VarChar, MID).query(`
         SELECT TOP 1 pDate
         FROM Growth_Income
         WHERE MID = @MID
@@ -239,20 +223,17 @@ export const getMiningStatus = async (req, res) => {
         serverTime,
       });
     }
-const rawDate = result.recordset[0].pDate;
+    const rawDate = result.recordset[0].pDate;
 
-const formatted = dayjs(
-  rawDate.toISOString().replace("Z", "")
-).format("DD MMM YYYY, hh:mm A");
-
-
+    const formatted = dayjs(rawDate.toISOString().replace("Z", "")).format(
+      "DD MMM YYYY, hh:mm A",
+    );
 
     return res.json({
       success: true,
       lastMiningTime: formatted,
       serverTime,
     });
-
   } catch (error) {
     console.log("Mining Status Error:", error);
 
@@ -266,7 +247,7 @@ const formatted = dayjs(
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-export const getMiningHistory = async (req, res) => {
+const getMiningHistory = async (req, res) => {
   try {
     const { MID } = req.params;
 
@@ -279,10 +260,7 @@ export const getMiningHistory = async (req, res) => {
 
     const pool = await poolPromise;
 
-    const result = await pool
-      .request()
-      .input("MID", sql.VarChar, MID)
-      .query(`
+    const result = await pool.request().input("MID", sql.VarChar, MID).query(`
         SELECT
           ID,
           MID,
@@ -300,14 +278,12 @@ export const getMiningHistory = async (req, res) => {
         ORDER BY ID DESC
       `);
 
-    
     /* ✅ DATE CONVERT HERE */
     const data = result.recordset.map((row) => ({
       ...row,
-      pDateFormatted: dayjs(
-  row.pDate.toISOString().replace("Z", "")
-).format("DD MMM YYYY, hh:mm A"),
-    
+      pDateFormatted: dayjs(row.pDate.toISOString().replace("Z", "")).format(
+        "DD MMM YYYY, hh:mm A",
+      ),
     }));
 
     return res.json({
@@ -315,7 +291,6 @@ export const getMiningHistory = async (req, res) => {
       total: data.length,
       data,
     });
-
   } catch (error) {
     console.log("Mining History Error:", error);
 
@@ -326,5 +301,8 @@ export const getMiningHistory = async (req, res) => {
   }
 };
 
-
-
+module.exports = {
+  startMining,
+  getMiningStatus,
+  getMiningHistory,
+};

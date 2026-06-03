@@ -1,9 +1,9 @@
-import sql from "mssql";
-import { poolPromise } from "../config/db.js";
-import levelPayout from "../services/levelPayout.js";
+const sql = require("mssql");
+const { poolPromise } = require("../config/db");
+const levelPayout = require("../services/levelPayout");
 
 // ================= SHOW DIRECT TEAM =================
-export const showDirectTeam = async (req, res) => {
+const showDirectTeam = async (req, res) => {
   try {
     const { userName } = req.params;
 
@@ -20,8 +20,7 @@ export const showDirectTeam = async (req, res) => {
     // ================= GET DIRECT MEMBERS =================
     const memberResult = await pool
       .request()
-      .input("ReferralId", sql.VarChar, userName)
-      .query(`
+      .input("ReferralId", sql.VarChar, userName).query(`
         SELECT *
         FROM Member_Details
         WHERE SponsorId = @ReferralId
@@ -37,8 +36,7 @@ export const showDirectTeam = async (req, res) => {
       // TOTAL TOPUP OF MEMBER
       const topupResult = await pool
         .request()
-        .input("MID", sql.VarChar, member.ConsumerID)
-        .query(`
+        .input("MID", sql.VarChar, member.ConsumerID).query(`
           SELECT
             ISNULL(SUM(amount), 0) AS TotalTopup,
             MAX(pDate) AS LastTopupDate
@@ -54,7 +52,7 @@ export const showDirectTeam = async (req, res) => {
         Name: member.Name,
         MobileNo: member.MobileNo,
         JoiningDate: member.JoiningDate,
-Address: member.Address,
+        Address: member.Address,
         TotalTopup: topup.TotalTopup || 0,
         LastTopupDate: topup.LastTopupDate || null,
 
@@ -80,7 +78,7 @@ Address: member.Address,
 };
 
 // ================= MEMBER DOWNLINE DETAILS WITH LEVEL =================
-export const memberDownlineDetailsWithLevel = async (req, res) => {
+const memberDownlineDetailsWithLevel = async (req, res) => {
   try {
     const { userId } = req.params;
 
@@ -133,8 +131,7 @@ export const memberDownlineDetailsWithLevel = async (req, res) => {
           // ================= TOPUP + FIRST DATE =================
           const topupResult = await pool
             .request()
-            .input("MID", sql.VarChar, member.ConsumerID)
-            .query(`
+            .input("MID", sql.VarChar, member.ConsumerID).query(`
               SELECT 
                 ISNULL(SUM(amount),0) AS TotalTopup,
                 MIN(tdate) AS ActiveDate
@@ -142,11 +139,9 @@ export const memberDownlineDetailsWithLevel = async (req, res) => {
               WHERE MID = @MID
             `);
 
-          const totalTopup =
-            topupResult.recordset[0]?.TotalTopup || 0;
+          const totalTopup = topupResult.recordset[0]?.TotalTopup || 0;
 
-          const activeDateRaw =
-            topupResult.recordset[0]?.tdate || null;
+          const activeDateRaw = topupResult.recordset[0]?.tdate || null;
 
           srno++;
 
@@ -195,7 +190,6 @@ export const memberDownlineDetailsWithLevel = async (req, res) => {
       total: finalData.length,
       data: finalData,
     });
-
   } catch (error) {
     console.log("DOWNLINE ERROR:", error);
 
@@ -207,18 +201,14 @@ export const memberDownlineDetailsWithLevel = async (req, res) => {
   }
 };
 
-
-export const updateMyRank = async (req, res) => {
+const updateMyRank = async (req, res) => {
   try {
-
     const pool = await poolPromise;
 
     const { memberId } = req.body;
 
     // direct active with topup >= 50
-    const directRes = await pool.request()
-      .input("mid", memberId)
-      .query(`
+    const directRes = await pool.request().input("mid", memberId).query(`
         SELECT COUNT(*) AS total
         FROM Member_Details
         WHERE SponsorId = @mid
@@ -229,80 +219,64 @@ export const updateMyRank = async (req, res) => {
     const totalDirect = directRes.recordset[0].total;
 
     // existing ranks from reward_nxtStep
-    const rankRes = await pool.request()
-      .input("mid", memberId)
-      .query(`
+    const rankRes = await pool.request().input("mid", memberId).query(`
         SELECT remarks
         FROM reward_nxtStep
         WHERE MID = @mid
       `);
 
-    const ranks = rankRes.recordset.map(r => r.remarks);
+    const ranks = rankRes.recordset.map((r) => r.remarks);
 
     let rank = "";
     let percentage = 0;
 
     // rank check from remarks
     if (ranks.includes("OX2")) {
-
       rank = "OX2";
       percentage = 1;
-
-    }
-    else if (ranks.includes("OX1")) {
-
+    } else if (ranks.includes("OX1")) {
       rank = "OX1";
       percentage = 2;
-
-    }
-    else if (totalDirect >= 8) {
-
+    } else if (totalDirect >= 8) {
       rank = "DIRECT";
       percentage = 3;
-
     }
 
     // update rank + percentage
-if (rank !== "") {
-
-  await pool.request()
-    .input("mid", memberId)
-    .input("rank", rank)
-    .input("percentage", percentage)
-    .query(`
+    if (rank !== "") {
+      await pool
+        .request()
+        .input("mid", memberId)
+        .input("rank", rank)
+        .input("percentage", percentage).query(`
       UPDATE Member_Details
       SET 
         Cr_Level = @rank,
         Joining_Comp_Level = @percentage
       WHERE MID = @mid
     `);
-
-}
+    }
 
     res.send({
       success: true,
       rank,
       percentage,
-      totalDirect
+      totalDirect,
     });
-
   } catch (err) {
-
     console.log(err);
 
     res.send({
-      success: false
+      success: false,
     });
-
   }
 };
-
 
 // ===============================
 // ACTIVATE PLAN API
 // ===============================
 
-export const activatePlan = async (req, res) => {
+const activatePlan = async (req, res) => {
   try {
     const { userId, amount, round } = req.body;
 
@@ -330,8 +304,7 @@ export const activatePlan = async (req, res) => {
 
     const userResult = await pool
       .request()
-      .input("ConsumerID", sql.VarChar, userId)
-      .query(`
+      .input("ConsumerID", sql.VarChar, userId).query(`
         SELECT TOP 1 *
         FROM Member_Details
         WHERE ConsumerID = @ConsumerID
@@ -353,9 +326,7 @@ export const activatePlan = async (req, res) => {
       .input("userID", sql.VarChar, userId)
       .execute("Get_MyFundWallet");
 
-    const walletBalance = Number(
-      walletResult.recordset?.[0]?.Balance || 0
-    );
+    const walletBalance = Number(walletResult.recordset?.[0]?.Balance || 0);
 
     if (walletBalance < investAmount) {
       return res.status(400).json({
@@ -372,8 +343,7 @@ export const activatePlan = async (req, res) => {
       .input("Name", sql.VarChar, user.Name || "")
       .input("amount", sql.Decimal(18, 2), investAmount)
       .input("pType", sql.VarChar, `Round ${round}`)
-      .input("Coin", sql.Float, investAmount)
-      .query(`
+      .input("Coin", sql.Float, investAmount).query(`
         INSERT INTO TopUp
         (
           MID,
@@ -402,15 +372,14 @@ export const activatePlan = async (req, res) => {
         )
       `);
 
-      // ================= LEDGER DEBIT =================
+    // ================= LEDGER DEBIT =================
 
-await pool
-  .request()
-  .input("MID", sql.VarChar, userId)
-  .input("Name", sql.VarChar, user.Name || "")
-  .input("Amount", sql.Decimal(18, 2), investAmount)
-  .input("Round", sql.VarChar, `Round ${round}`)
-  .query(`
+    await pool
+      .request()
+      .input("MID", sql.VarChar, userId)
+      .input("Name", sql.VarChar, user.Name || "")
+      .input("Amount", sql.Decimal(18, 2), investAmount)
+      .input("Round", sql.VarChar, `Round ${round}`).query(`
     INSERT INTO ledger
     (
       MID,
@@ -437,7 +406,6 @@ await pool
     )
   `);
 
-
     // ================= MEMBER UPDATE =================
 
     await pool
@@ -445,8 +413,7 @@ await pool
       .input("ConsumerID", sql.VarChar, userId)
       .input("Price", sql.Decimal(18, 2), investAmount)
       .input("Product_Name", sql.VarChar, `Round ${round}`)
-      .input("Joining_Comp_Level", sql.Int, round)
-      .query(`
+      .input("Joining_Comp_Level", sql.Int, round).query(`
         UPDATE Member_Details
         SET
           mStatus = 'Active',
@@ -455,8 +422,6 @@ await pool
           Joining_Comp_Level = @Joining_Comp_Level
         WHERE ConsumerID = @ConsumerID
       `);
-
-  
 
     await levelPayout(userId, investAmount);
 
@@ -487,19 +452,14 @@ await pool
 // GET ALL ACTIVATED ROUNDS
 // ===============================
 
-export const checkRoundActive = async (
-  req,
-  res
-) => {
+const checkRoundActive = async (req, res) => {
   try {
     const { memberId } = req.params;
 
     const pool = await poolPromise;
 
     // ================= GET ROUNDS =================
-    const result = await pool
-      .request()
-      .input("MID", sql.VarChar, memberId)
+    const result = await pool.request().input("MID", sql.VarChar, memberId)
       .query(`
         SELECT pType
         FROM TopUp
@@ -509,9 +469,7 @@ export const checkRoundActive = async (
     // ================= ROUND ARRAY =================
     const activatedRounds = result.recordset
       .map((item) => {
-        const round = String(item.pType)
-          .replace("Round ", "")
-          .trim();
+        const round = String(item.pType).replace("Round ", "").trim();
 
         return Number(round);
       })
@@ -536,7 +494,7 @@ export const checkRoundActive = async (
 // GET ALL ACTIVATED ROUNDS
 // ===============================
 
-export const getTopupHistory = async (req, res) => {
+const getTopupHistory = async (req, res) => {
   try {
     const pool = await poolPromise;
 
@@ -561,16 +519,14 @@ export const getTopupHistory = async (req, res) => {
 // ===============================
 // GET ALL ACTIVATED ROUNDS
 // ===============================
-export const getMyPlans = async (req, res) => {
+const getMyPlans = async (req, res) => {
   try {
     const { memberId } = req.params;
 
     const pool = await poolPromise;
 
     // User Plans
-    const plansResult = await pool
-      .request()
-      .input("MID", sql.VarChar, memberId)
+    const plansResult = await pool.request().input("MID", sql.VarChar, memberId)
       .query(`
         SELECT *
         FROM TopUp
@@ -600,7 +556,7 @@ export const getMyPlans = async (req, res) => {
         .trim();
 
       const pkg = packages.find(
-        (x) => String(x.ProductSubCategory).trim() === roundNo
+        (x) => String(x.ProductSubCategory).trim() === roundNo,
       );
 
       return {
@@ -631,8 +587,6 @@ export const getMyPlans = async (req, res) => {
     });
   }
 };
-
-
 
 // let isRunning = false;
 
@@ -696,3 +650,13 @@ export const getMyPlans = async (req, res) => {
 //     isRunning = false; // 🔥 reset lock
 //   }
 // };
+
+module.exports = {
+  showDirectTeam,
+  memberDownlineDetailsWithLevel,
+  updateMyRank,
+  activatePlan,
+  checkRoundActive,
+  getTopupHistory,
+  getMyPlans,
+};

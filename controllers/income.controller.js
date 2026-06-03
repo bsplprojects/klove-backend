@@ -1,7 +1,7 @@
-import { poolPromise } from "../config/db.js";
-import sql from "mssql";
+const sql = require("mssql");
+const { poolPromise } = require("../config/db");
 
-export const getROIIncomeHistory = async (req, res) => {
+const getROIIncomeHistory = async (req, res) => {
   try {
     const MID = req.params.MID;
 
@@ -23,3 +23,5 @@ export const getROIIncomeHistory = async (req, res) => {
     return res.status(500).json({ success: false, message: error.message });
   }
 };
+
+module.exports = { getROIIncomeHistory };

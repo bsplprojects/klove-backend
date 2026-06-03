@@ -2,8 +2,8 @@
 // controllers/rank.controller.js
 // ======================================================
 
-import sql from "mssql";
-import { poolPromise } from "../config/db.js";
+const sql = require("mssql");
+const { poolPromise } = require("../config/db");
 
 // ======================================================
 // DOWNLINE BUSINESS
@@ -15,9 +15,7 @@ async function memberDownlineBusiness(MID) {
   let currentMembers = [MID];
 
   while (currentMembers.length > 0) {
-    const memberList = currentMembers
-      .map((m) => `'${m}'`)
-      .join(",");
+    const memberList = currentMembers.map((m) => `'${m}'`).join(",");
 
     const downlineResult = await pool.request().query(`
       SELECT ConsumerID
@@ -42,9 +40,7 @@ async function memberDownlineBusiness(MID) {
         WHERE MID='${childMID}'
       `);
 
-      totalBusiness += Number(
-        topupResult.recordset[0].total || 0
-      );
+      totalBusiness += Number(topupResult.recordset[0].total || 0);
     }
 
     currentMembers = nextMembers;
@@ -66,7 +62,7 @@ async function getLegBusiness(MID) {
   `);
 
   let legs = [];
-console.log(MID);
+  console.log(MID);
   for (const user of directResult.recordset) {
     // =========================================
     // SELF BUSINESS
@@ -77,20 +73,14 @@ console.log(MID);
       WHERE MID='${user.ConsumerID}'
     `);
 
-    const selfBusiness = Number(
-      selfResult.recordset[0].total || 0
-    );
+    const selfBusiness = Number(selfResult.recordset[0].total || 0);
 
     // =========================================
     // TEAM BUSINESS
     // =========================================
-    const teamBusiness =
-      await memberDownlineBusiness(
-        user.ConsumerID
-      );
+    const teamBusiness = await memberDownlineBusiness(user.ConsumerID);
 
-    const totalBusiness =
-      selfBusiness + teamBusiness;
+    const totalBusiness = selfBusiness + teamBusiness;
 
     legs.push({
       MID: user.ConsumerID,
@@ -102,9 +92,7 @@ console.log(MID);
   // =========================================
   // SORT DESC
   // =========================================
-  legs.sort(
-    (a, b) => b.totalBusiness - a.totalBusiness
-  );
+  legs.sort((a, b) => b.totalBusiness - a.totalBusiness);
 
   return legs;
 }
@@ -112,10 +100,7 @@ console.log(MID);
 // ======================================================
 // GET RANK POOL
 // ======================================================
-export const getRankPool = async (
-  req,
-  res
-) => {
+const getRankPool = async (req, res) => {
   try {
     const { MID } = req.body;
 
@@ -131,17 +116,14 @@ export const getRankPool = async (
     // =========================================
     // MEMBER NAME
     // =========================================
-    const memberResult = await pool
-      .request()
-      .input("MID", sql.VarChar, MID)
+    const memberResult = await pool.request().input("MID", sql.VarChar, MID)
       .query(`
         SELECT TOP 1 Name
         FROM Member_Details
         WHERE ConsumerID=@MID
       `);
 
-    const memberName =
-      memberResult.recordset[0]?.Name || "";
+    const memberName = memberResult.recordset[0]?.Name || "";
 
     // =========================================
     // LEGS
@@ -151,8 +133,7 @@ export const getRankPool = async (
     // =========================================
     // STRONG LEG
     // =========================================
-    const strongLeg =
-      legs[0]?.totalBusiness || 0;
+    const strongLeg = legs[0]?.totalBusiness || 0;
 
     // =========================================
     // OTHER BUSINESS
@@ -166,18 +147,14 @@ export const getRankPool = async (
     // =========================================
     // SELF WALLET
     // =========================================
-    const selfWalletResult = await pool
-      .request()
-      .input("MID", sql.VarChar, MID)
+    const selfWalletResult = await pool.request().input("MID", sql.VarChar, MID)
       .query(`
         SELECT ISNULL(SUM(amount),0) as total
         FROM Topup
         WHERE MID=@MID
       `);
 
-    const selfWallet = Number(
-      selfWalletResult.recordset[0].total || 0
-    );
+    const selfWallet = Number(selfWalletResult.recordset[0].total || 0);
 
     // =========================================
     // RANKS
@@ -284,10 +261,8 @@ export const getRankPool = async (
       // =========================================
       const achieved =
         strongLeg >= rank.strongBusiness &&
-        otherBusiness >=
-          rank.otherBusiness &&
-        selfWallet >=
-          rank.selfWalletNeed;
+        otherBusiness >= rank.otherBusiness &&
+        selfWallet >= rank.selfWalletNeed;
 
       // =========================================
       // ALREADY EXIST CHECK
@@ -295,8 +270,7 @@ export const getRankPool = async (
       const alreadyResult = await pool
         .request()
         .input("MID", sql.VarChar, MID)
-        .input("RANK", sql.VarChar, rank.rank)
-        .query(`
+        .input("RANK", sql.VarChar, rank.rank).query(`
           SELECT TOP 1 *
           FROM reward_nxtStep
           WHERE MID=@MID
@@ -306,60 +280,24 @@ export const getRankPool = async (
 
       let achievedDate = null;
 
-      if (
-        alreadyResult.recordset.length > 0
-      ) {
-        achievedDate =
-          alreadyResult.recordset[0]
-            .issueDAte;
+      if (alreadyResult.recordset.length > 0) {
+        achievedDate = alreadyResult.recordset[0].issueDAte;
       }
 
       // =========================================
       // INSERT REWARD
       // =========================================
-      if (
-        achieved &&
-        alreadyResult.recordset.length === 0
-      ) {
+      if (achieved && alreadyResult.recordset.length === 0) {
         await pool
           .request()
           .input("MID", sql.VarChar, MID)
-          .input(
-            "NAME",
-            sql.VarChar,
-            memberName
-          )
-          .input(
-            "LEFTBUS",
-            sql.Float,
-            strongLeg
-          )
-          .input(
-            "RIGHTBUS",
-            sql.Float,
-            otherBusiness
-          )
-          .input(
-            "REWARD",
-            sql.Float,
-            rank.reward
-          )
-          .input(
-            "STATUS",
-            sql.VarChar,
-            "Achieved"
-          )
-          .input(
-            "RANK",
-            sql.VarChar,
-            rank.rank
-          )
-          .input(
-            "BONUS",
-            sql.VarChar,
-            rank.bonus
-          )
-          .query(`
+          .input("NAME", sql.VarChar, memberName)
+          .input("LEFTBUS", sql.Float, strongLeg)
+          .input("RIGHTBUS", sql.Float, otherBusiness)
+          .input("REWARD", sql.Float, rank.reward)
+          .input("STATUS", sql.VarChar, "Achieved")
+          .input("RANK", sql.VarChar, rank.rank)
+          .input("BONUS", sql.VarChar, rank.bonus).query(`
             INSERT INTO reward_nxtStep
             (
               MID,
@@ -402,32 +340,30 @@ export const getRankPool = async (
       }
 
       // =========================================
-// FINAL DATA
-// =========================================
-finalRanks.push({
-  rank: rank.rank,
-  business: rank.business,
+      // FINAL DATA
+      // =========================================
+      finalRanks.push({
+        rank: rank.rank,
+        business: rank.business,
 
-  // REQUIRED
-  strongRequired: rank.strongBusiness,
-  otherRequired: rank.otherBusiness,
-  selfRequired: rank.selfWalletNeed,
+        // REQUIRED
+        strongRequired: rank.strongBusiness,
+        otherRequired: rank.otherBusiness,
+        selfRequired: rank.selfWalletNeed,
 
-  // CURRENT
-  currentStrong: strongLeg,
-  currentOther: otherBusiness,
-  currentSelf: selfWallet,
+        // CURRENT
+        currentStrong: strongLeg,
+        currentOther: otherBusiness,
+        currentSelf: selfWallet,
 
-  percent: rank.percent,
-  bonus: rank.bonus,
-  profit: rank.profit,
-reward: rank.reward,
-  status: achieved
-    ? "Achieved"
-    : "Locked",
+        percent: rank.percent,
+        bonus: rank.bonus,
+        profit: rank.profit,
+        reward: rank.reward,
+        status: achieved ? "Achieved" : "Locked",
 
-  date: achievedDate,
-});
+        date: achievedDate,
+      });
     }
 
     return res.json({
@@ -446,3 +382,5 @@ reward: rank.reward,
     });
   }
 };
+
+module.exports = { getRankPool, memberDownlineBusiness, getLegBusiness };
