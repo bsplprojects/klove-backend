@@ -8,12 +8,11 @@ const config = {
   port: parseInt(process.env.DB_PORT),
 
   options: {
-    encrypt: true,
+    encrypt: false, //
     trustServerCertificate: true,
   },
 };
 
-// single connection pool
 const poolPromise = new sql.ConnectionPool(config)
   .connect()
   .then((pool) => {
@@ -21,7 +20,8 @@ const poolPromise = new sql.ConnectionPool(config)
     return pool;
   })
   .catch((err) => {
-    console.log("❌ DB Connection Failed", err);
+    console.log("❌ DB Connection Failed:", err);
+    process.exit(1);
   });
 
 module.exports = {
