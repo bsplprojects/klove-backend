@@ -1,5 +1,6 @@
 const { poolPromise, sql } = require("../config/db");
 const bcrypt = require("bcrypt");
+
 exports.getProfile = async (req, res) => {
   try {
     const userId = req.query.userId;
@@ -12,12 +13,9 @@ exports.getProfile = async (req, res) => {
 
     const pool = await poolPromise;
 
-    // 1️⃣ TABLE DATA
-    const result = await pool
-      .request()
-      .input("UserId", sql.VarChar, userId)
+    const result = await pool.request().input("UserId", sql.VarChar, userId)
       .query(`
-        SELECT *
+        SELECT Name, ConsumerID, JoiningDate, MobileNo, PhoneNo,SponsorId, SponsorName, Country, City, Address, State, PinCode,Sex
         FROM member_details
         WHERE ConsumerID = @UserId
       `);
@@ -34,14 +32,14 @@ exports.getProfile = async (req, res) => {
     const spResult = await pool
       .request()
       .input("UserId", sql.VarChar, userId)
-      .execute("Get_MemberDashboard");   
+      .execute("Get_MemberDashboard");
 
     const spData = spResult.recordset;
 
-     const fwResult = await pool
+    const fwResult = await pool
       .request()
       .input("UserId", sql.VarChar, userId)
-      .execute("Get_MyFundWallet");   
+      .execute("Get_MyFundWallet");
 
     const fwData = fwResult.recordset;
 
@@ -49,9 +47,8 @@ exports.getProfile = async (req, res) => {
     res.json({
       ...user,
       extra: spData,
-      extra2: fwData  
+      extra2: fwData,
     });
-
   } catch (err) {
     console.log(err);
     res.status(500).json({
@@ -60,11 +57,10 @@ exports.getProfile = async (req, res) => {
   }
 };
 
-
 exports.todayYesterdayReport = async (req, res) => {
   try {
     const MID = req.query.MID;
-  
+
     if (!MID) {
       return res.status(400).json({
         success: false,
@@ -74,9 +70,7 @@ exports.todayYesterdayReport = async (req, res) => {
 
     const pool = await poolPromise;
 
-    const result = await pool.request()
-      .input("MID", sql.VarChar, MID)
-      .query(`
+    const result = await pool.request().input("MID", sql.VarChar, MID).query(`
         SELECT 
             *,
             CASE 
@@ -190,10 +184,7 @@ exports.getCommissionHistory = async (req, res) => {
 
     const pool = await poolPromise;
 
-    const result = await pool
-      .request()
-      .input("MID", sql.VarChar, MID)
-      .query(`
+    const result = await pool.request().input("MID", sql.VarChar, MID).query(`
         SELECT TOP (100000)
           c.[Id],
           c.[Payoutdate],
@@ -227,7 +218,7 @@ exports.getCommissionHistory = async (req, res) => {
     // ================= TOTAL INCOME =================
     const totalIncome = rows.reduce(
       (sum, item) => sum + Number(item.Levelincome || 0),
-      0
+      0,
     );
 
     return res.json({
@@ -239,7 +230,6 @@ exports.getCommissionHistory = async (req, res) => {
       },
       data: rows,
     });
-
   } catch (err) {
     console.log("Commission Error:", err);
 
@@ -254,7 +244,18 @@ exports.getCommissionHistory = async (req, res) => {
 
 exports.updateProfile = async (req, res) => {
   try {
-    const { MID, email, phone, wallet } = req.body;
+    const {
+      MID,
+      name,
+      gender,
+      country,
+      address,
+      state,
+      pincode,
+      city,
+      email,
+      phone,
+    } = req.body;
 
     // ================= VALIDATION =================
 
@@ -271,9 +272,7 @@ exports.updateProfile = async (req, res) => {
 
     // ================= CHECK USER =================
 
-    const checkUser = await pool
-      .request()
-      .input("MID", sql.VarChar, MID)
+    const checkUser = await pool.request().input("MID", sql.VarChar, MID)
       .query(`
         SELECT ConsumerID
         FROM Member_Details
@@ -294,13 +293,24 @@ exports.updateProfile = async (req, res) => {
       .input("MID", sql.VarChar, MID)
       .input("PhoneNo", sql.VarChar, email || "")
       .input("MobileNo", sql.VarChar, phone || "")
-      .input("Address", sql.VarChar, wallet || "")
-      .query(`
+      .input("Country", sql.VarChar, country || "")
+      .input("City", sql.VarChar, city || "")
+      .input("Name", sql.VarChar, name || "")
+      .input("State", sql.VarChar, state || "")
+      .input("PinCode", sql.VarChar, pincode || "")
+      .input("Sex", sql.VarChar, gender || "")
+      .input("Address", sql.VarChar, address || "").query(`
         UPDATE Member_Details
         SET
           PhoneNo = @PhoneNo,
           MobileNo = @MobileNo,
-          Address = @Address
+          Address = @Address,
+          Country = @Country,
+          City = @City,
+          Name = @Name,
+          State = @State,
+          PinCode = @PinCode,
+          Sex = @Sex
         WHERE ConsumerID = @MID
       `);
 
@@ -338,10 +348,7 @@ exports.changePassword = async (req, res) => {
 
     // ================= GET USER =================
 
-    const result = await pool
-      .request()
-      .input("MID", sql.VarChar, MID)
-      .query(`
+    const result = await pool.request().input("MID", sql.VarChar, MID).query(`
         SELECT Password
         FROM Member_Details
         WHERE ConsumerID = @MID
@@ -358,10 +365,7 @@ exports.changePassword = async (req, res) => {
 
     // ================= CHECK PASSWORD =================
 
-    const isMatch = await bcrypt.compare(
-      currentPassword,
-      dbPassword
-    );
+    const isMatch = await bcrypt.compare(currentPassword, dbPassword);
 
     if (!isMatch) {
       return res.status(400).json({
@@ -379,8 +383,7 @@ exports.changePassword = async (req, res) => {
     await pool
       .request()
       .input("MID", sql.VarChar, MID)
-      .input("Password", sql.VarChar, hashedPassword)
-      .query(`
+      .input("Password", sql.VarChar, hashedPassword).query(`
         UPDATE Member_Details
         SET Password = @Password
         WHERE ConsumerID = @MID
@@ -413,10 +416,7 @@ exports.getP2pLedgerReport = async (req, res) => {
 
     const pool = await poolPromise;
 
-    const result = await pool
-      .request()
-      .input("MID", sql.VarChar, MID)
-      .query(`
+    const result = await pool.request().input("MID", sql.VarChar, MID).query(`
         SELECT TOP (100000)
           [ID],
           [MID],
@@ -442,13 +442,10 @@ exports.getP2pLedgerReport = async (req, res) => {
     // ================= TOTAL =================
     const totalAmount = rows.reduce(
       (sum, item) => sum + Number(item.Amount || 0),
-      0
+      0,
     );
 
-    const totalQty = rows.reduce(
-      (sum, item) => sum + Number(item.qty || 0),
-      0
-    );
+    const totalQty = rows.reduce((sum, item) => sum + Number(item.qty || 0), 0);
 
     return res.json({
       success: true,
@@ -460,7 +457,6 @@ exports.getP2pLedgerReport = async (req, res) => {
       },
       data: rows,
     });
-
   } catch (err) {
     console.log("Ledger Error:", err);
 
@@ -502,7 +498,7 @@ exports.getCommissionHistoryAll = async (req, res) => {
     // ================= TOTAL INCOME =================
     const totalIncome = rows.reduce(
       (sum, item) => sum + Number(item.Levelincome || 0),
-      0
+      0,
     );
 
     return res.json({
@@ -513,7 +509,6 @@ exports.getCommissionHistoryAll = async (req, res) => {
       },
       data: rows,
     });
-
   } catch (err) {
     console.log("Commission Error:", err);
 
@@ -552,22 +547,19 @@ exports.getGrowthIncomeHistoryAll = async (req, res) => {
     // ================= SUMMARY =================
     const totalGross = rows.reduce(
       (sum, item) => sum + Number(item.Amount || 0),
-      0
+      0,
     );
 
     const totalNet = rows.reduce(
       (sum, item) => sum + Number(item.NetAmount || 0),
-      0
+      0,
     );
 
-    const totalTDS = rows.reduce(
-      (sum, item) => sum + Number(item.TDS || 0),
-      0
-    );
+    const totalTDS = rows.reduce((sum, item) => sum + Number(item.TDS || 0), 0);
 
     const totalService = rows.reduce(
       (sum, item) => sum + Number(item.ServiceCharge || 0),
-      0
+      0,
     );
 
     const paid = rows.filter((x) => x.Status === "Paid").length;
@@ -586,7 +578,6 @@ exports.getGrowthIncomeHistoryAll = async (req, res) => {
       },
       data: rows,
     });
-
   } catch (err) {
     console.log("Growth Income Error:", err);
 
@@ -605,7 +596,7 @@ exports.getP2pLedgerReportAll = async (req, res) => {
       SELECT TOP (100000)
         l.[ID],
         l.[MID],
-        m.[Name],
+        l.[Name],
         l.[pDate],
         l.[qty],
         l.[Amount],
@@ -628,13 +619,10 @@ exports.getP2pLedgerReportAll = async (req, res) => {
     // ================= SUMMARY =================
     const totalAmount = rows.reduce(
       (sum, item) => sum + Number(item.Amount || 0),
-      0
+      0,
     );
 
-    const totalQty = rows.reduce(
-      (sum, item) => sum + Number(item.qty || 0),
-      0
-    );
+    const totalQty = rows.reduce((sum, item) => sum + Number(item.qty || 0), 0);
 
     const credit = rows.filter((x) => x.tType === "Credit").length;
     const debit = rows.filter((x) => x.tType === "Debit").length;
@@ -650,9 +638,42 @@ exports.getP2pLedgerReportAll = async (req, res) => {
       },
       data: rows,
     });
-
   } catch (err) {
     console.log("Ledger Error:", err);
+
+    return res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
+
+exports.getSponsorById = async (req, res) => {
+  try {
+    const userId = req.query.userId;
+
+    if (!userId) {
+      return res
+        .status(400)
+        .json({ success: false, msg: "userId is required" });
+    }
+
+    const pool = await poolPromise;
+
+    const result = await pool.request().input("UserId", sql.VarChar, userId)
+      .query(`
+       SELECT ID, ConsumerID, Name
+       FROM Member_Details
+       WHERE ConsumerID = @UserId
+     `);
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ success: false, msg: "User not found" });
+    }
+
+    return res.status(200).json({ success: true, data: result.recordset[0] });
+  } catch (error) {
+    console.log("Sponsor Error:", err);
 
     return res.status(500).json({
       success: false,

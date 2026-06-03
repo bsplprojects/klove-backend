@@ -6,20 +6,18 @@ const bcrypt = require("bcrypt");
 // =====================================
 exports.loginVerify = async (req, res) => {
   try {
-    const { UserName, Password } = req.body;
+    const { phone, password } = req.body;
 
     const pool = await poolPromise;
 
-    const result = await pool
-      .request()
-      .input("UserName", sql.VarChar, UserName)
+    const result = await pool.request().input("phone", sql.VarChar, phone)
       .query(`
         SELECT * FROM Member_Details
-        WHERE ConsumerID = @UserName
+        WHERE MobileNo = @phone
       `);
 
     if (result.recordset.length === 0) {
-      return res.json({
+      return res.status(400).json({
         success: false,
         message: "User Not Found",
       });
@@ -27,25 +25,20 @@ exports.loginVerify = async (req, res) => {
 
     const user = result.recordset[0];
 
-    // ✅ bcrypt password check
-    const isMatch = await bcrypt.compare(
-      Password,
-      user.Password
-    );
+    const isMatch = await bcrypt.compare(password, user.Password);
 
     if (!isMatch) {
       return res.json({
         success: false,
-        message: "Wrong Password",
+        message: "Wrong password",
       });
     }
 
-    return res.json({
+    return res.status(200).json({
       success: true,
       message: "Login Successful",
-      UserName: user.ConsumerID,
+      consumerID: user.ConsumerID,
     });
-
   } catch (err) {
     console.error(err);
     return res.status(500).json({
@@ -60,15 +53,8 @@ exports.loginVerify = async (req, res) => {
 // =====================================
 exports.register = async (req, res) => {
   try {
-    const {
-      sponsorId,
-      name,
-      phone,
-      email,
-      password,
-    } = req.body;
+    const { sponsorId, name, phone, email, password, sponsorName } = req.body;
 
-    // ================= VALIDATION =================
     if (!sponsorId || !name || !phone || !email || !password) {
       return res.status(400).json({
         success: false,
@@ -78,11 +64,9 @@ exports.register = async (req, res) => {
 
     const pool = await poolPromise;
 
-    // ================= CHECK SPONSOR =================
     const sponsor = await pool
       .request()
-      .input("sponsorId", sql.VarChar, sponsorId)
-      .query(`
+      .input("sponsorId", sql.VarChar, sponsorId).query(`
         SELECT *
         FROM Member_Details
         WHERE ConsumerID = @sponsorId
@@ -98,8 +82,7 @@ exports.register = async (req, res) => {
     // ================= CHECK EMAIL =================
     const existingEmail = await pool
       .request()
-      .input("email", sql.VarChar, email)
-      .query(`
+      .input("email", sql.VarChar, email).query(`
         SELECT *
         FROM Member_Details
         WHERE PhoneNo = @email
@@ -115,8 +98,7 @@ exports.register = async (req, res) => {
     // ================= CHECK PHONE =================
     const existingPhone = await pool
       .request()
-      .input("phone", sql.VarChar, phone)
-      .query(`
+      .input("phone", sql.VarChar, phone).query(`
         SELECT *
         FROM Member_Details
         WHERE MobileNo = @phone
@@ -130,8 +112,7 @@ exports.register = async (req, res) => {
     }
 
     // ================= USER ID =================
-    const userId =
-      "JBM" + Math.floor(100000 + Math.random() * 900000);
+    const userId = "KLV" + Math.floor(100000 + Math.random() * 900000);
 
     // ================= HASH PASSWORD =================
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -144,12 +125,15 @@ exports.register = async (req, res) => {
       .input("email", sql.VarChar, email)
       .input("password", sql.VarChar, hashedPassword)
       .input("sponsorId", sql.VarChar, sponsorId)
-      .input("userId", sql.VarChar, userId)
-      .query(`
+      .input("sponsorName", sql.VarChar, sponsorName)
+      .input("userId", sql.VarChar, userId).query(`
         INSERT INTO Member_Details
         (
           ConsumerID,
           SponsorID,
+          ReferralId,
+          ReferralName,
+          SponsorName,
           Name,
           MobileNo,
           PhoneNo,
@@ -160,6 +144,9 @@ exports.register = async (req, res) => {
         (
           @userId,
           @sponsorId,
+          @sponsorId,
+          @sponsorName,
+          @sponsorName,
           @name,
           @phone,
           @email,
@@ -169,9 +156,7 @@ exports.register = async (req, res) => {
       `);
 
     // ================= GET USER =================
-    const user = await pool
-      .request()
-      .input("userId", sql.VarChar, userId)
+    const user = await pool.request().input("userId", sql.VarChar, userId)
       .query(`
         SELECT *
         FROM Member_Details
@@ -183,7 +168,6 @@ exports.register = async (req, res) => {
       message: "Registration successful",
       user: user.recordset[0],
     });
-
   } catch (error) {
     console.log(error);
 
@@ -212,8 +196,7 @@ exports.getSponsor = async (req, res) => {
 
     const sponsor = await pool
       .request()
-      .input("sponsorId", sql.VarChar, sponsorId)
-      .query(`
+      .input("sponsorId", sql.VarChar, sponsorId).query(`
         SELECT Name
         FROM Member_Details
         WHERE ConsumerID = @sponsorId
@@ -230,7 +213,6 @@ exports.getSponsor = async (req, res) => {
       status: "SUCCESS",
       name: sponsor.recordset[0].Name,
     });
-
   } catch (error) {
     console.log(error);
 

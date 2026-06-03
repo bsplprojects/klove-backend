@@ -1,14 +1,13 @@
 import { ethers } from "ethers";
 import sql from "mssql";
-import  { poolPromise } from "../config/db.js";
-
+import { poolPromise } from "../config/db.js";
 
 // Polygon USDT Contract
 const USDT_ADDRESS = "0xc2132D05D31c914a87C6611C10748AEb04B58e8F";
 
 const USDT_ABI = [
   "function transfer(address to, uint256 value) returns (bool)",
-  "function balanceOf(address owner) view returns (uint256)"
+  "function balanceOf(address owner) view returns (uint256)",
 ];
 
 export const withdrawalRequest = async (req, res) => {
@@ -28,10 +27,10 @@ export const withdrawalRequest = async (req, res) => {
 
     const mainAmount = Number(amount);
 
-    if (mainAmount < 1) {
+    if (mainAmount < 500) {
       return res.status(400).json({
         success: false,
-        message: "Minimum withdrawal is 1 USDT",
+        message: "Minimum withdrawal is 500 USDT",
       });
     }
 
@@ -46,10 +45,7 @@ export const withdrawalRequest = async (req, res) => {
     }
 
     // ================= MEMBER =================
-    const member = await pool
-      .request()
-      .input("MID", sql.VarChar, MID)
-      .query(`
+    const member = await pool.request().input("MID", sql.VarChar, MID).query(`
         SELECT TOP 1 *
         FROM Member_Details
         WHERE ConsumerID = @MID
@@ -93,15 +89,12 @@ export const withdrawalRequest = async (req, res) => {
 
     // ================= BLOCKCHAIN SETUP =================
     const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
-    const adminWallet = new ethers.Wallet(
-      process.env.PRIVATE_KEY,
-      provider
-    );
+    const adminWallet = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
 
     const usdtContract = new ethers.Contract(
       USDT_ADDRESS,
       USDT_ABI,
-      adminWallet
+      adminWallet,
     );
 
     const amountWei = ethers.parseUnits(payable.toString(), 6); // USDT = 6 decimals
@@ -111,9 +104,7 @@ export const withdrawalRequest = async (req, res) => {
     await transaction.begin();
 
     // ================= CHECK USDT BALANCE =================
-    const contractBalance = await usdtContract.balanceOf(
-      adminWallet.address
-    );
+    const contractBalance = await usdtContract.balanceOf(adminWallet.address);
 
     if (contractBalance < amountWei) {
       await transaction.rollback();
@@ -125,10 +116,7 @@ export const withdrawalRequest = async (req, res) => {
     }
 
     // ================= SEND USDT =================
-    const tx = await usdtContract.transfer(
-      walletAddress,
-      amountWei
-    );
+    const tx = await usdtContract.transfer(walletAddress, amountWei);
 
     const receipt = await tx.wait();
     const txHash = receipt.hash;
@@ -142,8 +130,7 @@ export const withdrawalRequest = async (req, res) => {
       .input("Tax", sql.Decimal(18, 2), tax)
       .input("Payable", sql.Decimal(18, 2), payable)
       .input("Status", sql.VarChar, "Success")
-      .input("SendDate", sql.DateTime, new Date())
-      .query(`
+      .input("SendDate", sql.DateTime, new Date()).query(`
         INSERT INTO SendToTrustWallet
         (
           MID,
@@ -175,7 +162,6 @@ export const withdrawalRequest = async (req, res) => {
       message: "USDT Withdrawal successful",
       txHash,
     });
-
   } catch (err) {
     console.log("WITHDRAW ERROR:", err);
 
@@ -553,7 +539,6 @@ export const withdrawalRequest = async (req, res) => {
 //   }
 // };
 
-
 // ============================================
 // TRANSFER FUND WALLET -> TRADE WALLET
 // ============================================
@@ -623,8 +608,7 @@ export const transferToTradeWallet = async (req, res) => {
     // =========================
     const historyResult = await request
       .input("MID2", sql.VarChar, MID)
-      .input("TransferAmount", sql.Decimal(18, 2), transferAmount)
-      .query(`
+      .input("TransferAmount", sql.Decimal(18, 2), transferAmount).query(`
         INSERT INTO TradeWalletTransferHistory
         (
           MID,
@@ -652,7 +636,6 @@ export const transferToTradeWallet = async (req, res) => {
       message: "Transfer successful",
       transfer: historyResult.recordset[0],
     });
-
   } catch (err) {
     console.log(err);
 
@@ -679,10 +662,7 @@ export const getTradeWalletTransferHistory = async (req, res) => {
   try {
     const pool = await poolPromise;
 
-    const result = await pool
-      .request()
-      .input("MID", sql.VarChar, MID)
-      .query(`
+    const result = await pool.request().input("MID", sql.VarChar, MID).query(`
         SELECT TOP 100
           Id,
           MID,
@@ -707,7 +687,6 @@ export const getTradeWalletTransferHistory = async (req, res) => {
     });
   }
 };
-
 
 export const withdrawRequest = async (req, res) => {
   let transaction;
@@ -741,9 +720,7 @@ export const withdrawRequest = async (req, res) => {
     // =========================================================
     // GET USER
     // =========================================================
-    const userResult = await request
-      .input("MID", sql.VarChar, MID)
-      .query(`
+    const userResult = await request.input("MID", sql.VarChar, MID).query(`
         SELECT TOP 1 
           m.MID,
           m.Name,
@@ -790,7 +767,7 @@ export const withdrawRequest = async (req, res) => {
     // INSERT WITHDRAW REQUEST
     // =========================================================
     await request
-      .input("MID", sql.VarChar, MID)   // ✅ FIXED
+      .input("MID", sql.VarChar, MID) // ✅ FIXED
       .input("Name", sql.VarChar, Name)
       .input("ExchAddress", sql.VarChar, WalletAddress)
       .input("Coin", sql.VarChar, "USDT")
@@ -801,15 +778,13 @@ export const withdrawRequest = async (req, res) => {
       .input("Remark", sql.VarChar, "Withdrawal Request")
       .input("Flag", sql.Int, 0)
       .input("ModifyDate", sql.DateTime, new Date())
-      .input("Profit", sql.Decimal(18, 2), 0)
-      .query(`
+      .input("Profit", sql.Decimal(18, 2), 0).query(`
         INSERT INTO SendToTrustWallet
         (MID, Name, ExchAddress, Coin, AdminCharge, Tax, Payable, Status, Remark, Flag, ModifyDate, Profit)
         VALUES
         (@MID, @Name, @ExchAddress, @Coin, @AdminCharge, @Tax, @Payable, @Status, @Remark, @Flag, @ModifyDate, @Profit)
       `);
 
-   
     // =========================================================
     // COMMIT
     // =========================================================
@@ -819,7 +794,6 @@ export const withdrawRequest = async (req, res) => {
       success: true,
       message: "Withdrawal request submitted successfully",
     });
-
   } catch (error) {
     console.log(error);
 

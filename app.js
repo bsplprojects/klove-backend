@@ -38,7 +38,7 @@ app.use(
       "https://www.jbmglobal.pro",
     ],
     credentials: true,
-  })
+  }),
 );
 
 // ================= SESSION =================
@@ -55,7 +55,7 @@ app.use(
       sameSite: "lax",
       maxAge: 1000 * 60 * 60 * 24, // 1 day
     },
-  })
+  }),
 );
 
 // ================= STATIC =================
@@ -117,9 +117,7 @@ async function startServer() {
 
     app.listen(PORT, () => {
       console.log(`🚀 Server Running On Port ${PORT}`);
-      console.log(
-        `🌍 Environment: ${process.env.NODE_ENV || "development"}`
-      );
+      console.log(`🌍 Environment: ${process.env.NODE_ENV || "development"}`);
     });
   } catch (err) {
     console.error("❌ Database Connection Failed");
