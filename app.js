@@ -16,6 +16,7 @@ const miningRoutes = require("./routes/mining.routes");
 const fundRoutes = require("./routes/fund.routes");
 const rankRoutes = require("./routes/rank.routes");
 const packageRoutes = require("./routes/package.routes");
+const incomeRoutes = require("./routes/income.routes");
 
 const db = require("./config/db");
 
@@ -76,6 +77,7 @@ app.use("/api/mining", miningRoutes);
 app.use("/api/fund", fundRoutes);
 app.use("/api/rank", rankRoutes);
 app.use("/api/package", packageRoutes);
+app.use("/api/income", incomeRoutes);
 
 // ================= HEALTH CHECK =================
 
