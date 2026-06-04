@@ -261,7 +261,7 @@ const getDepositReportByMID = async (req, res) => {
           Refrence,
           Bank
         FROM dbo.AddFundRequest
-        WHERE MID = @MID
+        WHERE (@MID = 'Admin' OR MID = @MID)
         ORDER BY ID DESC
       `);
 
@@ -274,7 +274,7 @@ const getDepositReportByMID = async (req, res) => {
           SUM(CASE WHEN Status = 'Approved' THEN 1 ELSE 0 END) AS approvedCount,
           SUM(CASE WHEN Status = 'Rejected' THEN 1 ELSE 0 END) AS rejectedCount
         FROM dbo.AddFundRequest
-        WHERE MID = @MID
+        WHERE (@MID = 'Admin' OR MID = @MID)
       `);
 
     return res.json({

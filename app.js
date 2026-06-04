@@ -8,6 +8,7 @@ const authRoutes = require("./routes/auth.routes");
 const dashboardRoutes = require("./routes/dashboard.routes");
 const teamRoutes = require("./routes/team.routes");
 const withdrawRoutes = require("./routes/withdraw.routes");
+const depositRoutes = require("./routes/deposits.routes");
 const userRoutes = require("./routes/user.routes");
 const tradeRoutes = require("./routes/trade.routes");
 const authadminRoutes = require("./routes/auth.admin.routes");
@@ -17,6 +18,7 @@ const fundRoutes = require("./routes/fund.routes");
 const rankRoutes = require("./routes/rank.routes");
 const packageRoutes = require("./routes/package.routes");
 const incomeRoutes = require("./routes/income.routes");
+const payoutRoutes = require("./routes/payout.routes");
 
 const db = require("./config/db");
 
@@ -64,6 +66,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/team", teamRoutes);
 app.use("/api/withdraw", withdrawRoutes);
+app.use("/api/deposit", depositRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/trade", tradeRoutes);
 app.use("/api/admin", authadminRoutes);
@@ -73,6 +76,7 @@ app.use("/api/fund", fundRoutes);
 app.use("/api/rank", rankRoutes);
 app.use("/api/package", packageRoutes);
 app.use("/api/income", incomeRoutes);
+app.use("/api/payout", payoutRoutes);
 
 // ================= HEALTH CHECK =================
 

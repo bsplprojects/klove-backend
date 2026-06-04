@@ -16,13 +16,12 @@ exports.adminLogin = async (req, res) => {
       });
     }
 
-    const pool = await db.poolPromise
+    const pool = await db.poolPromise;
 
     // ======================
     // FIND USER
     // ======================
-    const result = await pool.request()
-      .input("memberId", sql.VarChar, memberId)
+    const result = await pool.request().input("memberId", sql.VarChar, memberId)
       .query(`
         SELECT *
         FROM Member_Details
@@ -49,10 +48,7 @@ exports.adminLogin = async (req, res) => {
     // ======================
     // PASSWORD VERIFY
     // ======================
-    const validPassword = await bcrypt.compare(
-      password,
-      user.Secret_Key_No
-    );
+    const validPassword = await bcrypt.compare(password, user.Secret_Key_No);
 
     if (!validPassword) {
       return res.status(401).json({
@@ -70,7 +66,7 @@ exports.adminLogin = async (req, res) => {
         role: user.Role,
       },
       process.env.JWT_SECRET || "SECRET",
-      { expiresIn: "1d" }
+      { expiresIn: "1d" },
     );
 
     return res.json({
@@ -79,7 +75,6 @@ exports.adminLogin = async (req, res) => {
       role: user.Role,
       user,
     });
-
   } catch (err) {
     console.error(err);
     return res.status(500).json({

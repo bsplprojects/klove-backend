@@ -15,7 +15,7 @@ exports.getProfile = async (req, res) => {
 
     const result = await pool.request().input("UserId", sql.VarChar, userId)
       .query(`
-        SELECT Name, ConsumerID, JoiningDate, MobileNo, PhoneNo,SponsorId, SponsorName, Country, City, Address, State, PinCode,Sex
+        SELECT Name, ConsumerID, JoiningDate, Password, MobileNo, PhoneNo,SponsorId, SponsorName, Country, City, Address, State, PinCode,Sex
         FROM member_details
         WHERE ConsumerID = @UserId
       `);

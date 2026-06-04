@@ -102,7 +102,7 @@ async function getLegBusiness(MID) {
 // ======================================================
 const getRankPool = async (req, res) => {
   try {
-    const { MID } = req.body;
+    const { MID } = req.params;
 
     if (!MID) {
       return res.status(400).json({
