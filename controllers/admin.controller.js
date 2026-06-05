@@ -606,11 +606,12 @@ const withdrawReport = async (req, res) => {
 };
 
 const updateRequestStatus = async (req, res) => {
+  const pool = await poolPromise;
+  const transaction = new sql.Transaction(pool);
+
   try {
     const id = +req.params.id;
     const status = req.body.status;
-
-    const pool = await poolPromise;
 
     if (!id) {
       return res.status(400).json({
@@ -619,24 +620,102 @@ const updateRequestStatus = async (req, res) => {
       });
     }
 
-    const result = await pool
-      .request()
-      .input("id", sql.Int, id)
-      .input("status", sql.VarChar, status).query(`
+    await transaction.begin();
+
+    // Request 1: Update
+    const request1 = new sql.Request(transaction);
+
+    await request1.input("id", sql.Int, id).input("status", sql.VarChar, status)
+      .query(`
         UPDATE AddFundRequest
         SET Status = @status
         WHERE ID = @id
       `);
 
+    // Request 2: Fetch updated row
+    const request2 = new sql.Request(transaction);
+
+    const updatedResult = await request2.input("id", sql.Int, id).query(`
+        SELECT * FROM AddFundRequest WHERE ID = @id
+      `);
+
+    const data = updatedResult.recordset[0];
+
+    // Request 3: Insert TopUp (ONLY if approved)
+    if (status?.toLowerCase() === "approved") {
+      const request3 = new sql.Request(transaction);
+
+      const topupResult = await request3
+        .input("mid", sql.VarChar, data.MID)
+        .input("name", sql.VarChar, data.Name)
+        .input("amount", sql.Int, data.Amount)
+        .input("status", sql.VarChar, "approved")
+        .input("pDate", sql.DateTime, new Date()).query(`
+          INSERT INTO TopUp (MID, Name, amount, pDate, Status)
+          VALUES (@mid, @name, @amount, @pDate, @status)
+        `);
+
+      if (topupResult.rowsAffected[0] === 0) {
+        throw new Error("Topup Insert Failed");
+      }
+    }
+
+    await transaction.commit();
+
+    return res.status(200).json({
+      success: true,
+      message: "Status updated successfully",
+    });
+  } catch (error) {
+    await transaction.rollback();
+
+    console.log(error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+      err: error.message,
+    });
+  }
+};
+
+const addUPIId = async (req, res) => {
+  try {
+    const id = req.params.id;
+    console.log(id);
+    const upi = req.body.upi;
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        message: "ID required",
+      });
+    }
+
+    const pool = await poolPromise;
+    const admin = await pool
+      .request()
+      .input("upiId", sql.VarChar, upi)
+      .input("MID", sql.VarChar, id).query(`
+        UPDATE Member_Details
+        SET uplineid = @upiId
+        WHERE ConsumerID = @MID
+      `);
+
+    if (admin.rowsAffected == 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Member not found",
+      });
+    }
+
     return res
       .status(200)
-      .json({ success: true, message: "Status updated successfully" });
+      .json({ success: true, message: "UPI ID added successfully" });
   } catch (error) {
     console.log(error);
     return res.status(500).json({
-      msg: "Internal Server Error",
       success: false,
-      err: error.message,
+      msg: "Internal Server Error",
     });
   }
 };
@@ -648,4 +727,5 @@ module.exports = {
   activateAccount,
   sendfund,
   memberReport,
+  addUPIId,
 };

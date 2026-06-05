@@ -74,9 +74,11 @@ const withdrawalRequest = async (req, res) => {
       .input("Status", sql.VarChar, "pending")
       .input("PDate", sql.DateTime, new Date())
       .input("Mode", sql.VarChar, currency)
+      .input("Name", sql.VarChar, user.Name)
+      .input("upi", sql.VarChar, user.uplineid)
       .query(
         `
-        INSERT INTO BankTransferNew (MID, Amount, Status, PDate, Mode) VALUES (@MID, @Amount, @Status, @PDate, @Mode);
+        INSERT INTO BankTransferNew (MID, Amount, Status, PDate, Mode, Name, BAnk) VALUES (@MID, @Amount, @Status, @PDate, @Mode, @Name, @upi);
       `,
       );
 
@@ -587,7 +589,7 @@ const getTradeWalletTransferHistory = async (req, res) => {
   try {
     const pool = await poolPromise;
 
-    const result = await pool.request().input("MID", sql.VarChar, MID).query(`
+    let query = `
         SELECT TOP 100
           wid,
           MID,
@@ -596,9 +598,18 @@ const getTradeWalletTransferHistory = async (req, res) => {
           Status,
           Mode
         FROM BankTransferNew
-        WHERE MID = @MID
-        ORDER BY Id DESC
-      `);
+      `;
+
+    const request = pool.request();
+
+    if (MID) {
+      request.input("MID", sql.VarChar, MID);
+      query += ` WHERE MID = @MID `;
+    }
+
+    query += ` ORDER BY Id DESC`;
+
+    const result = await request.query(query);
 
     return res.json({
       success: true,
