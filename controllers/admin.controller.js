@@ -1,10 +1,10 @@
 const { sql, poolPromise } = require("../config/db");
 
-const levelPayout  = require("../services/levelPayout.js");
+const levelPayout = require("../services/levelPayout.js");
 // ==========================
 // MEMBER REPORT (SAFE)
 // ==========================
-exports.memberReport = async (req, res) => {
+const memberReport = async (req, res) => {
   try {
     const pool = await poolPromise;
 
@@ -13,7 +13,8 @@ exports.memberReport = async (req, res) => {
     const limit = parseInt(req.query.limit) || 50;
     const offset = (page - 1) * limit;
 
-    const request = pool.request()
+    const request = pool
+      .request()
       .input("search", `%${search}%`)
       .input("offset", offset)
       .input("limit", limit);
@@ -51,7 +52,6 @@ exports.memberReport = async (req, res) => {
       currentPage: page,
       members: dataResult.recordset,
     });
-
   } catch (err) {
     console.log(err);
     res.status(500).json({ success: false, message: "Server Error" });
@@ -111,8 +111,6 @@ exports.memberReport = async (req, res) => {
 //       if (balance < amt) throw new Error("Insufficient Wallet Balance");
 //     }
 
-
-
 //     // ================= TRANSACTION ID =================
 //     const transID = `TXN${Date.now()}`;
 
@@ -139,7 +137,7 @@ exports.memberReport = async (req, res) => {
 //       .input("Amount", sql.Decimal(18,2), amt)
 //       .input("senderId", sql.VarChar, senderId)
 //       .input("transID", sql.VarChar, transID)
-      
+
 //       .query(`
 //         INSERT INTO ledger
 // (MID, Name, pDate, Amount, type, Remarks, tType, transID,TRX)
@@ -174,7 +172,7 @@ exports.memberReport = async (req, res) => {
 //   }
 // };
 
-exports.sendfund = async (req, res) => {
+const sendfund = async (req, res) => {
   const { senderId, receiverId, amount } = req.body;
 
   const pool = await poolPromise;
@@ -200,9 +198,11 @@ exports.sendfund = async (req, res) => {
 
     // ================= SENDER =================
 
-    const sender = await new sql.Request(transaction)
-      .input("MID", sql.VarChar, senderId)
-      .query(`
+    const sender = await new sql.Request(transaction).input(
+      "MID",
+      sql.VarChar,
+      senderId,
+    ).query(`
         SELECT Name 
         FROM Member_Details 
         WHERE ConsumerID=@MID
@@ -214,9 +214,11 @@ exports.sendfund = async (req, res) => {
 
     // ================= RECEIVER =================
 
-    const receiver = await new sql.Request(transaction)
-      .input("MID", sql.VarChar, receiverId)
-      .query(`
+    const receiver = await new sql.Request(transaction).input(
+      "MID",
+      sql.VarChar,
+      receiverId,
+    ).query(`
         SELECT Name 
         FROM Member_Details 
         WHERE ConsumerID=@MID
@@ -243,12 +245,11 @@ exports.sendfund = async (req, res) => {
       }
     }
 
-      // ================= UPDATE MEMBER =================
+    // ================= UPDATE MEMBER =================
 
     await new sql.Request(transaction)
       .input("MID", sql.VarChar, receiverId)
-      .input("Amount", sql.Decimal(18, 2), amount)
-      .query(`
+      .input("Amount", sql.Decimal(18, 2), amount).query(`
         UPDATE Member_Details
         SET 
           mStatus = 'Active',
@@ -275,8 +276,7 @@ exports.sendfund = async (req, res) => {
       .input("Coin", sql.Decimal(18, 2), 1)
       .input("Status", sql.VarChar, "Credited")
       .input("UserAddress", sql.VarChar, senderId)
-      .input("TxHash", sql.VarChar, txHash)
-      .query(`
+      .input("TxHash", sql.VarChar, txHash).query(`
         INSERT INTO TopUp
         (
           MID,
@@ -305,7 +305,7 @@ exports.sendfund = async (req, res) => {
         )
       `);
 
-       // ================= LEVEL INCOME =================
+    // ================= LEVEL INCOME =================
 
     await levelPayout(receiverId, amount, transaction);
 
@@ -332,11 +332,10 @@ exports.sendfund = async (req, res) => {
   }
 };
 
-
 // ==========================
 // ACTIVATE MEMBER API
 // ==========================
-exports.activateAccount = async (req, res) => {
+const activateAccount = async (req, res) => {
   const { memberId, amount } = req.body;
 
   let transaction;
@@ -359,9 +358,11 @@ exports.activateAccount = async (req, res) => {
     started = true;
 
     // ================= MEMBER CHECK =================
-    const memberResult = await new sql.Request(transaction)
-      .input("MID", sql.VarChar, memberId)
-      .query(`
+    const memberResult = await new sql.Request(transaction).input(
+      "MID",
+      sql.VarChar,
+      memberId,
+    ).query(`
         SELECT ConsumerID, Name, mStatus
         FROM Member_Details
         WHERE ConsumerID = @MID
@@ -370,15 +371,15 @@ exports.activateAccount = async (req, res) => {
     const member = memberResult.recordset[0];
 
     if (!member) throw new Error("Member not found");
-    if (member.mStatus === "Active") throw new Error("Member already activated");
+    if (member.mStatus === "Active")
+      throw new Error("Member already activated");
 
     // ================= LEDGER =================
     await new sql.Request(transaction)
       .input("MID", sql.VarChar, memberId)
       .input("Name", sql.VarChar, member.Name)
       .input("Amount", sql.Decimal(18, 2), amt)
-      .input("TRX", sql.VarChar, "ADMIN")
-      .query(`
+      .input("TRX", sql.VarChar, "ADMIN").query(`
         INSERT INTO ledger
         (MID, Name, pDate, Amount, type, Remarks, tType, TRX)
         VALUES
@@ -389,8 +390,7 @@ exports.activateAccount = async (req, res) => {
     // ================= UPDATE MEMBER =================
     await new sql.Request(transaction)
       .input("MID", sql.VarChar, memberId)
-      .input("Amount", sql.Decimal(18, 2), amt)
-      .query(`
+      .input("Amount", sql.Decimal(18, 2), amt).query(`
         UPDATE Member_Details
         SET 
           mStatus = 'Active',
@@ -403,8 +403,7 @@ exports.activateAccount = async (req, res) => {
     await new sql.Request(transaction)
       .input("MID", sql.VarChar, memberId)
       .input("Name", sql.VarChar, member.Name)
-      .input("Amount", sql.Decimal(18, 2), amt)
-      .query(`
+      .input("Amount", sql.Decimal(18, 2), amt).query(`
         INSERT INTO topup
         (MID, Name, amount, Coin, pDate, pType)
         VALUES
@@ -417,7 +416,6 @@ exports.activateAccount = async (req, res) => {
       success: true,
       message: "Member activated successfully",
     });
-
   } catch (err) {
     if (started && transaction) {
       try {
@@ -434,8 +432,7 @@ exports.activateAccount = async (req, res) => {
   }
 };
 
-
-exports.topupReport = async (req, res) => {
+const topupReport = async (req, res) => {
   try {
     const pool = await poolPromise;
 
@@ -461,7 +458,8 @@ exports.topupReport = async (req, res) => {
     // =========================
     // REQUEST
     // =========================
-    const request = pool.request()
+    const request = pool
+      .request()
       .input("search", `%${search}%`)
       .input("offset", offset)
       .input("limit", limit);
@@ -507,7 +505,6 @@ exports.topupReport = async (req, res) => {
       totalPages: Math.ceil(total / limit),
       topups: dataResult.recordset,
     });
-
   } catch (err) {
     console.log(err);
 
@@ -518,7 +515,7 @@ exports.topupReport = async (req, res) => {
   }
 };
 
-exports.withdrawReport = async (req, res) => {
+const withdrawReport = async (req, res) => {
   try {
     const pool = await poolPromise;
 
@@ -598,7 +595,6 @@ exports.withdrawReport = async (req, res) => {
       totalPages: Math.ceil(total / limit),
       withdrawals: dataResult.recordset,
     });
-
   } catch (err) {
     console.log(err);
 
@@ -607,4 +603,49 @@ exports.withdrawReport = async (req, res) => {
       message: "Server Error",
     });
   }
+};
+
+const updateRequestStatus = async (req, res) => {
+  try {
+    const id = +req.params.id;
+    const status = req.body.status;
+
+    const pool = await poolPromise;
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        message: "ID required",
+      });
+    }
+
+    const result = await pool
+      .request()
+      .input("id", sql.Int, id)
+      .input("status", sql.VarChar, status).query(`
+        UPDATE AddFundRequest
+        SET Status = @status
+        WHERE ID = @id
+      `);
+
+    return res
+      .status(200)
+      .json({ success: true, message: "Status updated successfully" });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      msg: "Internal Server Error",
+      success: false,
+      err: error.message,
+    });
+  }
+};
+
+module.exports = {
+  updateRequestStatus,
+  topupReport,
+  withdrawReport,
+  activateAccount,
+  sendfund,
+  memberReport,
 };

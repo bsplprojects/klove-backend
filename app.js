@@ -3,6 +3,7 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const session = require("express-session");
+const path = require("path");
 
 const authRoutes = require("./routes/auth.routes");
 const dashboardRoutes = require("./routes/dashboard.routes");
@@ -25,8 +26,6 @@ const db = require("./config/db");
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// ================= MIDDLEWARE =================
-
 app.set("trust proxy", 1);
 
 app.use(express.json());
@@ -38,8 +37,6 @@ app.use(
     credentials: true,
   }),
 );
-
-// ================= SESSION =================
 
 app.use(
   session({
@@ -56,11 +53,7 @@ app.use(
   }),
 );
 
-// ================= STATIC =================
-
-app.use("/uploads", express.static("uploads"));
-
-// ================= ROUTES =================
+app.use("/uploads", express.static(path.resolve(__dirname, "../uploads")));
 
 app.use("/api/auth", authRoutes);
 app.use("/api/dashboard", dashboardRoutes);
@@ -78,8 +71,6 @@ app.use("/api/package", packageRoutes);
 app.use("/api/income", incomeRoutes);
 app.use("/api/payout", payoutRoutes);
 
-// ================= HEALTH CHECK =================
-
 app.get("/", (req, res) => {
   res.status(200).json({
     success: true,
@@ -88,16 +79,12 @@ app.get("/", (req, res) => {
   });
 });
 
-// ================= 404 =================
-
 app.use((req, res) => {
   res.status(404).json({
     success: false,
     message: "Route Not Found",
   });
 });
-
-// ================= ERROR HANDLER =================
 
 app.use((err, req, res, next) => {
   console.error("SERVER ERROR =>", err);
@@ -107,8 +94,6 @@ app.use((err, req, res, next) => {
     message: err.message || "Internal Server Error",
   });
 });
-
-// ================= START SERVER =================
 
 async function startServer() {
   try {

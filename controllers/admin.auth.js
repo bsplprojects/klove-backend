@@ -6,7 +6,7 @@ const db = require("../config/db");
 // ==============================
 // ADMIN LOGIN
 // ==============================
-exports.adminLogin = async (req, res) => {
+adminLogin = async (req, res) => {
   try {
     const { memberId, password } = req.body;
 
@@ -81,4 +81,8 @@ exports.adminLogin = async (req, res) => {
       error: "Server error",
     });
   }
+};
+
+module.exports = {
+  adminLogin,
 };

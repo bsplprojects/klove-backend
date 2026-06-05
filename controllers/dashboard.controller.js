@@ -25,6 +25,7 @@ exports.getDashboard = async (req, res) => {
       teamCount: data.TeamSize ?? 0,
       TEAM_VOLUME: data.TeamVolume ?? 0,
       activeStake: data.ActiveStake ?? 0,
+      ...data,
     });
   } catch (err) {
     console.log("Dashboard Error:", err);

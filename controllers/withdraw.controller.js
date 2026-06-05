@@ -12,25 +12,31 @@ const USDT_ABI = [
 
 const withdrawalRequest = async (req, res) => {
   let pool;
-  let transaction;
 
   try {
-    const { MID, amount } = req.body;
+    const { MID, amount, currency } = req.body;
 
     // ================= VALIDATION =================
-    if (!MID || !amount) {
+    if (!amount) {
       return res.status(400).json({
         success: false,
-        message: "MID and amount required",
+        message: "Amount required",
       });
     }
 
     const mainAmount = Number(amount);
 
-    if (mainAmount < 500) {
+    if (currency === "INR" && mainAmount < 500) {
       return res.status(400).json({
         success: false,
-        message: "Minimum withdrawal is 500 USDT",
+        message: "Minimum withdrawal is 500 INR",
+      });
+    }
+
+    if (currency === "USDT" && mainAmount < 5) {
+      return res.status(400).json({
+        success: false,
+        message: "Minimum withdrawal is 5 USDT",
       });
     }
 
@@ -59,121 +65,40 @@ const withdrawalRequest = async (req, res) => {
     }
 
     const user = member.recordset[0];
-    const walletAddress = user.Address;
 
-    if (!walletAddress) {
-      return res.status(400).json({
-        success: false,
-        message: "Wallet address missing",
-      });
-    }
-
-    // ================= BALANCE CHECK (DB WALLET) =================
-    const wallet = await pool
+    // INSERT THE RECORD INSIDE THE BANK TRANSFER NEW TABLE
+    const result = await pool
       .request()
-      .input("userID", sql.VarChar, MID)
-      .execute("Get_MyFundWallet");
-
-    const balance = Number(wallet.recordset[0]?.Balance || 0);
-
-    if (balance < mainAmount) {
-      return res.status(400).json({
-        success: false,
-        message: "Insufficient balance",
-      });
-    }
-
-    // ================= TAX CALCULATION =================
-    const tax = (mainAmount * 1) / 100;
-    const payable = mainAmount - tax;
-
-    // ================= BLOCKCHAIN SETUP =================
-    const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
-    const adminWallet = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
-
-    const usdtContract = new ethers.Contract(
-      USDT_ADDRESS,
-      USDT_ABI,
-      adminWallet,
-    );
-
-    const amountWei = ethers.parseUnits(payable.toString(), 6); // USDT = 6 decimals
-
-    // ================= TRANSACTION START =================
-    transaction = new sql.Transaction(pool);
-    await transaction.begin();
-
-    // ================= CHECK USDT BALANCE =================
-    const contractBalance = await usdtContract.balanceOf(adminWallet.address);
-
-    if (contractBalance < amountWei) {
-      await transaction.rollback();
-
-      return res.status(400).json({
-        success: false,
-        message: "Insufficient USDT in admin wallet",
-      });
-    }
-
-    // ================= SEND USDT =================
-    const tx = await usdtContract.transfer(walletAddress, amountWei);
-
-    const receipt = await tx.wait();
-    const txHash = receipt.hash;
-
-    // ================= SAVE DB =================
-    await new sql.Request(transaction)
       .input("MID", sql.VarChar, MID)
-      .input("Name", sql.VarChar, user.Name)
-      .input("HashID", sql.VarChar, txHash)
-      .input("AdminCharge", sql.Decimal(18, 2), mainAmount)
-      .input("Tax", sql.Decimal(18, 2), tax)
-      .input("Payable", sql.Decimal(18, 2), payable)
-      .input("Status", sql.VarChar, "Success")
-      .input("SendDate", sql.DateTime, new Date()).query(`
-        INSERT INTO SendToTrustWallet
-        (
-          MID,
-          Name,
-          HashID,
-          AdminCharge,
-          Tax,
-          Payable,
-          Status,
-          SendDate
-        )
-        VALUES
-        (
-          @MID,
-          @Name,
-          @HashID,
-          @AdminCharge,
-          @Tax,
-          @Payable,
-          @Status,
-          @SendDate
-        )
-      `);
+      .input("Amount", sql.Float, amount)
+      .input("Status", sql.VarChar, "pending")
+      .input("PDate", sql.DateTime, new Date())
+      .input("Mode", sql.VarChar, currency)
+      .query(
+        `
+        INSERT INTO BankTransferNew (MID, Amount, Status, PDate, Mode) VALUES (@MID, @Amount, @Status, @PDate, @Mode);
+      `,
+      );
 
-    await transaction.commit();
+    if (result.rowsAffected[0] === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Withdrawal request failed",
+      });
+    }
 
-    return res.json({
+    return res.status(200).json({
       success: true,
-      message: "USDT Withdrawal successful",
-      txHash,
+      message: "Withdrawal Request successfull",
+      data: result.recordset,
     });
   } catch (err) {
     console.log("WITHDRAW ERROR:", err);
 
-    if (transaction) {
-      try {
-        await transaction.rollback();
-      } catch {}
-    }
-
     return res.status(500).json({
       success: false,
-      message: err?.message || "Server error",
+      message: "Internal server error",
+      err: err.message,
     });
   }
 };
@@ -664,12 +589,13 @@ const getTradeWalletTransferHistory = async (req, res) => {
 
     const result = await pool.request().input("MID", sql.VarChar, MID).query(`
         SELECT TOP 100
-          Id,
+          wid,
           MID,
           Amount,
-          TransferDate,
-          Status
-        FROM TradeWalletTransferHistory
+          PDate,
+          Status,
+          Mode
+        FROM BankTransferNew
         WHERE MID = @MID
         ORDER BY Id DESC
       `);

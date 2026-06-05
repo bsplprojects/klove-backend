@@ -8,7 +8,6 @@ const insertDeposit = async (req, res) => {
     const { txnNo, currency, amount, MID } = req.body;
     const file = req.file;
 
-    // ================= VALIDATION =================
     if (!txnNo || !currency || !amount || !MID) {
       return res.status(400).json({
         success: false,
@@ -16,22 +15,33 @@ const insertDeposit = async (req, res) => {
       });
     }
 
-    // ================= FILE HANDLING =================
-    const filePath = file ? file.path : null;
+    const member = await pool
+      .request()
+      .input("MID", sql.VarChar, MID)
+      .query(`SELECT Name FROM Member_Details WHERE ConsumerID = @MID`);
 
-    // ================= INSERT QUERY =================
+    if (!member.recordset.length) {
+      return res.status(400).json({
+        success: false,
+        message: "Member not found",
+      });
+    }
+
+    const filePath = file ? `uploads/${file.filename}` : null;
+
     await pool
       .request()
       .input("txnNo", sql.VarChar, txnNo)
+      .input("Name", sql.VarChar, member.recordset[0].Name)
       .input("currency", sql.VarChar, currency)
       .input("amount", sql.Decimal(18, 2), amount)
       .input("MID", sql.VarChar, MID)
       .input("Status", sql.VarChar, "pending")
       .input("file", sql.VarChar, filePath).query(`
         INSERT INTO AddFundRequest
-        (tNo, Method, Amount, MID, ImageUrl, Status)
+        (tNo, Name, Method, Amount, MID, ImageUrl, Status)
         VALUES
-        (@txnNo, @currency, @amount, @MID, @file, @Status)
+        (@txnNo, @Name,@currency, @amount, @MID, @file, @Status)
       `);
 
     return res.status(200).json({

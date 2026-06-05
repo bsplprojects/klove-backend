@@ -15,7 +15,7 @@ exports.getProfile = async (req, res) => {
 
     const result = await pool.request().input("UserId", sql.VarChar, userId)
       .query(`
-        SELECT Name, ConsumerID, JoiningDate, Password, MobileNo, PhoneNo,SponsorId, SponsorName, Country, City, Address, State, PinCode,Sex
+        SELECT Name, ConsumerID, JoiningDate, uplineid, Placement, Password, MobileNo, PhoneNo,SponsorId, SponsorName, Country, City, Address, State, PinCode,Sex
         FROM member_details
         WHERE ConsumerID = @UserId
       `);
@@ -255,6 +255,7 @@ exports.updateProfile = async (req, res) => {
       city,
       email,
       phone,
+      upiId,
     } = req.body;
 
     // ================= VALIDATION =================
@@ -265,6 +266,9 @@ exports.updateProfile = async (req, res) => {
         message: "MID is required",
       });
     }
+
+    const file = req.file;
+    const filePath = file ? `uploads/${file.filename}` : null;
 
     // ================= DB CONNECTION =================
 
@@ -299,6 +303,8 @@ exports.updateProfile = async (req, res) => {
       .input("State", sql.VarChar, state || "")
       .input("PinCode", sql.VarChar, pincode || "")
       .input("Sex", sql.VarChar, gender || "")
+      .input("UpiId", sql.VarChar, upiId || "")
+      .input("filePath", sql.VarChar, filePath || "")
       .input("Address", sql.VarChar, address || "").query(`
         UPDATE Member_Details
         SET
@@ -310,7 +316,9 @@ exports.updateProfile = async (req, res) => {
           Name = @Name,
           State = @State,
           PinCode = @PinCode,
-          Sex = @Sex
+          Sex = @Sex,
+          uplineid = @UpiId,
+          Placement = @filePath
         WHERE ConsumerID = @MID
       `);
 
