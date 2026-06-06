@@ -1,7 +1,3 @@
-// ======================================================
-// controllers/rank.controller.js
-// ======================================================
-
 const sql = require("mssql");
 const { poolPromise } = require("../config/db");
 

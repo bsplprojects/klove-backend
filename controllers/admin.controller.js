@@ -1,9 +1,6 @@
 const { sql, poolPromise } = require("../config/db");
+const { levelPayout } = require("../services/levelPayout");
 
-const levelPayout = require("../services/levelPayout.js");
-// ==========================
-// MEMBER REPORT (SAFE)
-// ==========================
 const memberReport = async (req, res) => {
   try {
     const pool = await poolPromise;
@@ -30,20 +27,7 @@ const memberReport = async (req, res) => {
     `);
 
     const dataResult = await request.query(`
-      SELECT
-        ID,
-        ConsumerID AS MemberID,
-        Address AS Name,
-        SponsorId,
-        JoiningDate,
-        CASE WHEN ISNULL(Price,0) > 0 THEN 'Active' ELSE 'Inactive' END AS Status,
-        ISNULL(Price,0) AS Price,
-        0 AS TotalIncome
-      FROM Member_Details
-      ${whereClause}
-      ORDER BY JoiningDate DESC
-      OFFSET @offset ROWS
-      FETCH NEXT @limit ROWS ONLY
+      SELECT ID, ConsumerID, Name, SponsorId, SponsorName, MobileNo, PhoneNo as Email, JoiningDate FROM Member_Details
     `);
 
     res.json({
@@ -57,120 +41,6 @@ const memberReport = async (req, res) => {
     res.status(500).json({ success: false, message: "Server Error" });
   }
 };
-
-// ==========================
-// SEND FUND (SECURE FIXED)
-// ==========================
-// exports.sendfund = async (req, res) => {
-
-//   const { senderId, receiverId, amount } = req.body;
-
-//   const pool = await poolPromise;
-//   const transaction = new sql.Transaction(pool);
-
-//   let started = false;
-
-//   try {
-//     if (!senderId || !receiverId || !amount) {
-//       throw new Error("Required fields missing");
-//     }
-
-//     const amt = Number(amount);
-
-//     if (amt <= 0) throw new Error("Invalid amount");
-//     if (senderId === receiverId) throw new Error("Cannot transfer to self");
-
-//     await transaction.begin();
-//     started = true;
-
-//     // ================= SENDER =================
-//     const sender = await new sql.Request(transaction)
-//       .input("MID", sql.VarChar, senderId)
-//       .query(`SELECT Name FROM Member_Details WHERE ConsumerID=@MID`);
-
-//     if (!sender.recordset.length) throw new Error("Sender not found");
-
-//     // ================= RECEIVER =================
-//     const receiver = await new sql.Request(transaction)
-//       .input("MID", sql.VarChar, receiverId)
-//       .query(`SELECT Name FROM Member_Details WHERE ConsumerID=@MID`);
-
-//     if (!receiver.recordset.length) throw new Error("Receiver not found");
-
-//     const senderName = sender.recordset[0].Name;
-//     const receiverName = receiver.recordset[0].Name;
-
-//     // ================= WALLET CHECK =================
-//     if (senderId.toLowerCase() !== "admin") {
-//       const wallet = await new sql.Request(transaction)
-//         .input("userID", sql.VarChar, senderId)
-//         .execute("Get_MyFundWallet");
-
-//       const balance = wallet.recordset[0]?.Balance || 0;
-
-//       if (balance < amt) throw new Error("Insufficient Wallet Balance");
-//     }
-
-//     // ================= TRANSACTION ID =================
-//     const transID = `TXN${Date.now()}`;
-
-//     // ================= DEBIT (SENDER) =================
-//     await new sql.Request(transaction)
-//       .input("MID", sql.VarChar, senderId)
-//       .input("Name", sql.VarChar, senderName)
-//       .input("Amount", sql.Decimal(18,2), amt)
-//       .input("receiverId", sql.VarChar, receiverId)
-//       .input("transID", sql.VarChar, transID)
-//       .query(`
-//         INSERT INTO ledger
-// (MID, Name, pDate, Amount, type, Remarks, tType, transID,TRX)
-// VALUES
-// (@MID, @Name, GETDATE(), @Amount, 'Dr.',
-// 'Fund Sent To ' + @receiverId,
-// 'Fund Transfer', @transID,@receiverId)
-//       `);
-
-//     // ================= CREDIT (RECEIVER) =================
-//     await new sql.Request(transaction)
-//       .input("MID", sql.VarChar, receiverId)
-//       .input("Name", sql.VarChar, receiverName)
-//       .input("Amount", sql.Decimal(18,2), amt)
-//       .input("senderId", sql.VarChar, senderId)
-//       .input("transID", sql.VarChar, transID)
-
-//       .query(`
-//         INSERT INTO ledger
-// (MID, Name, pDate, Amount, type, Remarks, tType, transID,TRX)
-// VALUES
-// (@MID, @Name, GETDATE(), @Amount, 'Cr.',
-// 'Fund Received From ' + @senderId,
-// 'Fund Transfer', @transID,@senderId)
-//       `);
-
-//     await transaction.commit();
-
-//     return res.json({
-//       success: true,
-//       message: "Fund transferred successfully",
-//       transID
-//     });
-
-//   } catch (err) {
-
-//     if (started) {
-//       try {
-//         await transaction.rollback();
-//       } catch (e) {
-//         console.log("Rollback error:", e.message);
-//       }
-//     }
-
-//     return res.json({
-//       success: false,
-//       message: err.message
-//     });
-//   }
-// };
 
 const sendfund = async (req, res) => {
   const { senderId, receiverId, amount } = req.body;
@@ -332,9 +202,6 @@ const sendfund = async (req, res) => {
   }
 };
 
-// ==========================
-// ACTIVATE MEMBER API
-// ==========================
 const activateAccount = async (req, res) => {
   const { memberId, amount } = req.body;
 
@@ -651,14 +518,70 @@ const updateRequestStatus = async (req, res) => {
         .input("amount", sql.Int, data.Amount)
         .input("status", sql.VarChar, "approved")
         .input("pDate", sql.DateTime, new Date()).query(`
-          INSERT INTO TopUp (MID, Name, amount, pDate, Status)
-          VALUES (@mid, @name, @amount, @pDate, @status)
-        `);
+      INSERT INTO TopUp (MID, Name, amount, pDate, Status)
+      VALUES (@mid, @name, @amount, @pDate, @status)
+    `);
 
       if (topupResult.rowsAffected[0] === 0) {
         throw new Error("Topup Insert Failed");
       }
     }
+
+      // Commit first
+      await transaction.commit();
+
+      // Run level payout only for approved requests
+      if (status?.toLowerCase() === "approved") {
+        try {
+          await levelPayout(data.MID, data.Amount);
+        } catch (err) {
+          console.error("Level payout failed:", err);
+        }
+      }
+
+    return res.status(200).json({
+      success: true,
+      message: "Status updated successfully",
+    });
+    
+  } catch (error) {
+    await transaction.rollback();
+
+    console.log(error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+      err: error.message,
+    });
+  }
+};
+
+const updateWithdrawalRequestStatus = async (req, res) => {
+  const pool = await poolPromise;
+  const transaction = new sql.Transaction(pool);
+
+  try {
+    const id = +req.params.id;
+    const status = req.body.status;
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        message: "ID required",
+      });
+    }
+
+    await transaction.begin();
+
+    // Request 1: Update
+    const request1 = new sql.Request(transaction);
+
+    await request1.input("id", sql.Int, id).input("status", sql.VarChar, status)
+      .query(`
+        UPDATE BankTransferNew
+        SET Status = @status
+        WHERE wid = @id
+      `);
 
     await transaction.commit();
 
@@ -728,4 +651,5 @@ module.exports = {
   sendfund,
   memberReport,
   addUPIId,
+  updateWithdrawalRequestStatus,
 };

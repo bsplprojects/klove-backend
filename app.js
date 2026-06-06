@@ -4,6 +4,7 @@ const express = require("express");
 const cors = require("cors");
 const session = require("express-session");
 const path = require("path");
+require("./cron/roi.cron");
 
 const authRoutes = require("./routes/auth.routes");
 const dashboardRoutes = require("./routes/dashboard.routes");
@@ -20,6 +21,7 @@ const rankRoutes = require("./routes/rank.routes");
 const packageRoutes = require("./routes/package.routes");
 const incomeRoutes = require("./routes/income.routes");
 const payoutRoutes = require("./routes/payout.routes");
+const supportRoutes = require("./routes/support.routes");
 
 const db = require("./config/db");
 
@@ -70,6 +72,7 @@ app.use("/api/rank", rankRoutes);
 app.use("/api/package", packageRoutes);
 app.use("/api/income", incomeRoutes);
 app.use("/api/payout", payoutRoutes);
+app.use("/api/support", supportRoutes);
 
 app.get("/", (req, res) => {
   res.status(200).json({

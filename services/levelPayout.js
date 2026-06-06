@@ -5,7 +5,6 @@ const levelPayout = async (MID, amt) => {
   try {
     const pool = await poolPromise;
 
-    // ===== USER DETAILS =====
     const member = await pool.request().input("MID", sql.VarChar, MID).query(`
         SELECT ConsumerID, Name
         FROM Member_Details
@@ -16,9 +15,7 @@ const levelPayout = async (MID, amt) => {
 
     let currentMID = member.recordset[0].ConsumerID;
 
-    // ===== LEVEL LOOP (1-10) =====
-    for (let level = 1; level <= 10; level++) {
-      // ===== FIND SPONSOR =====
+    for (let level = 1; level <= 7; level++) {
       const sponsorRes = await pool
         .request()
         .input("MID", sql.VarChar, currentMID).query(`
@@ -51,19 +48,26 @@ const levelPayout = async (MID, amt) => {
 
       switch (level) {
         case 1:
-          percent = 0.1; // 10%
+          percent = 0.05;
           break;
         case 2:
-          percent = 0.05; // 5%
+          percent = 0.02;
           break;
         case 3:
-          percent = 0.03; // 3%
+          percent = 0.01;
           break;
         case 4:
-          percent = 0.02; // 2%
+          percent = 0.0075;
           break;
-        default:
-          percent = 0.01; // 1% (Level 5-10)
+        case 5:
+          percent = 0.005;
+          break;
+        case 6:
+          percent = 0.005;
+          break;
+        case 7:
+          percent = 0.0025;
+          break;
       }
 
       const levelIncome = Number(amt) * percent;
@@ -129,4 +133,5 @@ const levelPayout = async (MID, amt) => {
     throw err;
   }
 };
+
 module.exports = { levelPayout };

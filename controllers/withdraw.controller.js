@@ -66,6 +66,14 @@ const withdrawalRequest = async (req, res) => {
 
     const user = member.recordset[0];
 
+    // check there has to be a uplineid for the member before insertion
+    if (user.uplineid === null || user.uplineid === "") {
+      return res.status(400).json({
+        success: false,
+        message: "Please set the UPI ID in your profile",
+      });
+    }
+
     // INSERT THE RECORD INSIDE THE BANK TRANSFER NEW TABLE
     const result = await pool
       .request()
@@ -596,7 +604,8 @@ const getTradeWalletTransferHistory = async (req, res) => {
           Amount,
           PDate,
           Status,
-          Mode
+          Mode,
+          BAnk
         FROM BankTransferNew
       `;
 
