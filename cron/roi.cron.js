@@ -41,7 +41,7 @@ cron.schedule(
 
         await pool
           .request()
-          .input("amount", sql.Float, newAmount)
+          .input("amount", sql.Float, roi)
           .input("MID", sql.VarChar, topup.MID)
           .input("Name", sql.VarChar, topup.Name)
           .input("pDate", sql.DateTime, now)

@@ -48,25 +48,25 @@ const levelPayout = async (MID, amt) => {
 
       switch (level) {
         case 1:
-          percent = 0.05;
+          percent = 0.005; // 0.50%
           break;
         case 2:
-          percent = 0.02;
+          percent = 0.002; // 0.20%
           break;
         case 3:
-          percent = 0.01;
+          percent = 0.001; // 0.10%
           break;
         case 4:
-          percent = 0.0075;
+          percent = 0.00075; // 0.075%
           break;
         case 5:
-          percent = 0.005;
+          percent = 0.0005; // 0.050%
           break;
         case 6:
-          percent = 0.005;
+          percent = 0.0005; // 0.050%
           break;
         case 7:
-          percent = 0.0025;
+          percent = 0.0025; // 0.25%
           break;
       }
 
@@ -91,6 +91,7 @@ const levelPayout = async (MID, amt) => {
         .input("Name", sql.VarChar, toName)
         .input("Level", sql.Int, level)
         .input("FromMID", sql.VarChar, MID)
+        .input("percent", sql.VarChar, percent)
         .input("TotalBV", sql.Decimal(18, 2), Number(amt))
         .input("Levelincome", sql.Decimal(18, 2), levelIncome)
         .input("Totalmember", sql.Int, 1).query(`
@@ -102,6 +103,7 @@ const levelPayout = async (MID, amt) => {
             Consumerid,
             Name,
             Lavel,
+            Percent,
             lavelcosumied,
             Totalbv,
             Levelincome,
@@ -116,6 +118,7 @@ const levelPayout = async (MID, amt) => {
             @Consumerid,
             @Name,
             @Level,
+            @percent,
             @FromMID,
             @TotalBV,
             @Levelincome,

@@ -11,12 +11,22 @@ const getROIIncomeHistory = async (req, res) => {
         .json({ success: false, message: "MID is required" });
     }
 
+    const adminID = MID === "Admin" ? null : MID;
+
     const pool = await poolPromise;
 
-    const result = await pool
-      .request()
-      .input("MID", sql.VarChar, MID)
-      .query(`SELECT * FROM Growth_Income WHERE MID = @MID`);
+    let baseQuery = `SELECT * FROM Growth_Income`;
+
+    let request = pool.request();
+    let result;
+    if (adminID === null) {
+      result = await request.query(baseQuery);
+    } else {
+      baseQuery += ` WHERE ConsumerID = @MID`;
+      result = await request
+        .input("MID", sql.VarChar, adminID)
+        .query(baseQuery);
+    }
 
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -65,11 +75,24 @@ const getLevelIncomeHistory = async (req, res) => {
       return res.status(400).json({ success: false, msg: "MID is required" });
     }
 
+    const adminID = MID === "Admin" ? null : MID;
+
     const pool = await poolPromise;
 
-    const result = await pool.request().input("MID", sql.VarChar, MID).query(`
-      SELECT * FROM Comission WHERE Consumerid = @MID
-    `);
+    let baseQuery = `
+      SELECT * FROM Comission
+    `;
+
+    let request = pool.request();
+    let result;
+    if (adminID === null) {
+      result = await request.query(baseQuery);
+    } else {
+      baseQuery += ` WHERE ConsumerID = @MID`;
+      result = await request
+        .input("MID", sql.VarChar, adminID)
+        .query(baseQuery);
+    }
 
     return res.status(200).json({ success: true, data: result.recordset });
   } catch (error) {

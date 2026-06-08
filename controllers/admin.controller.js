@@ -527,23 +527,22 @@ const updateRequestStatus = async (req, res) => {
       }
     }
 
-      // Commit first
-      await transaction.commit();
+    // Commit first
+    await transaction.commit();
 
-      // Run level payout only for approved requests
-      if (status?.toLowerCase() === "approved") {
-        try {
-          await levelPayout(data.MID, data.Amount);
-        } catch (err) {
-          console.error("Level payout failed:", err);
-        }
+    // Run level payout only for approved requests
+    if (status?.toLowerCase() === "approved") {
+      try {
+        await levelPayout(data.MID, data.Amount);
+      } catch (err) {
+        console.error("Level payout failed:", err);
       }
+    }
 
     return res.status(200).json({
       success: true,
       message: "Status updated successfully",
     });
-    
   } catch (error) {
     await transaction.rollback();
 
@@ -643,6 +642,105 @@ const addUPIId = async (req, res) => {
   }
 };
 
+const addNotice = async (req, res) => {
+  try {
+    const { title, notice } = req.body;
+    const file = req.file;
+
+    if (!title || !notice) {
+      return res.status(400).json({
+        success: false,
+        msg: "Add notice title and description",
+      });
+    }
+
+    const filePath = file ? `uploads/${file.filename}` : null;
+
+    const pool = await poolPromise;
+    const result = await pool
+      .request()
+      .input("title", sql.VarChar, title)
+      .input("MID", sql.VarChar, "Admin")
+      .input("notice", sql.VarChar, notice)
+      .input("filePath", sql.VarChar, filePath)
+      .input("status", sql.VarChar, "active")
+      .input("date", sql.DateTime, new Date()).query(`
+        INSERT INTO Message_Boxs (MID, Name, Message, reqDate, Status, Mobile) 
+        VALUES (@MID, @title, @notice, @date, @status, @filePath) 
+      `);
+
+    if (result.rowsAffected == 0) {
+      return res.status(400).json({
+        success: false,
+        msg: "Failed to add notice",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      msg: "Notice Added Successfully",
+      data: result.recordset,
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      success: false,
+      msg: "Internal Server Error",
+    });
+  }
+};
+
+const getNotices = async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const result = await pool.request().query(`
+      SELECT * FROM Message_Boxs
+      `);
+
+    return res.status(200).json({
+      success: true,
+      msg: "Notices Fetched Successfully",
+      data: result.recordset,
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      success: false,
+      msg: "Internal Server Error",
+    });
+  }
+};
+
+const deleteNotice = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const pool = await poolPromise;
+
+    const result = await pool.request().input("id", sql.Int, +id).query(`
+      DELETE FROM Message_Boxs WHERE ID = @id
+    `);
+
+    if (result.rowsAffected == 0) {
+      return res.status(400).json({
+        success: false,
+        msg: "Failed to delete notice",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      msg: "Notice Deleted Successfully",
+      data: result.recordset,
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      success: false,
+      msg: "Internal Server Error",
+    });
+  }
+};
+
 module.exports = {
   updateRequestStatus,
   topupReport,
@@ -652,4 +750,7 @@ module.exports = {
   memberReport,
   addUPIId,
   updateWithdrawalRequestStatus,
+  addNotice,
+  getNotices,
+  deleteNotice,
 };
