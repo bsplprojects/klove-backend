@@ -29,19 +29,30 @@ const insertDeposit = async (req, res) => {
 
     const filePath = file ? `uploads/${file.filename}` : null;
 
+    // IF currency is usdt multiply it by 100 otherwise leave
+    let amountToInsert = amount;
+    if (currency === "USDT") {
+      amountToInsert = Number(amount) * 100;
+    }
+
     await pool
       .request()
       .input("txnNo", sql.VarChar, txnNo)
       .input("Name", sql.VarChar, member.recordset[0].Name)
       .input("currency", sql.VarChar, currency)
-      .input("amount", sql.Decimal(18, 2), amount)
+      .input("amount", sql.Decimal(18, 2), amountToInsert)
       .input("MID", sql.VarChar, MID)
       .input("Status", sql.VarChar, "pending")
+      .input(
+        "Remark",
+        sql.VarChar,
+        currency === "USDT" ? "1 usdt = 100 inr converted" : "",
+      )
       .input("file", sql.VarChar, filePath).query(`
         INSERT INTO AddFundRequest
-        (tNo, Name, Method, Amount, MID, ImageUrl, Status)
+        (tNo, Name, Method, Amount, MID, ImageUrl, Status, Remark)
         VALUES
-        (@txnNo, @Name,@currency, @amount, @MID, @file, @Status)
+        (@txnNo, @Name,@currency, @amount, @MID, @file, @Status, @Remark)
       `);
 
     return res.status(200).json({

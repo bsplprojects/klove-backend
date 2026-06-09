@@ -15,7 +15,7 @@ exports.getProfile = async (req, res) => {
 
     const result = await pool.request().input("UserId", sql.VarChar, userId)
       .query(`
-        SELECT Name, ConsumerID, JoiningDate, uplineid, Placement, Password, MobileNo, PhoneNo,SponsorId, SponsorName, Country, City, Address, State, PinCode,Sex
+        SELECT Name, ConsumerID, JoiningDate, Product_Name, uplineid, Placement, Password, MobileNo, PhoneNo,SponsorId, SponsorName, Country, City, Address, State, PinCode,Sex
         FROM member_details
         WHERE ConsumerID = @UserId
       `);
@@ -256,6 +256,7 @@ exports.updateProfile = async (req, res) => {
       email,
       phone,
       upiId,
+      bep20,
     } = req.body;
 
     // ================= VALIDATION =================
@@ -305,6 +306,7 @@ exports.updateProfile = async (req, res) => {
       .input("Sex", sql.VarChar, gender || "")
       .input("UpiId", sql.VarChar, upiId || "")
       .input("filePath", sql.VarChar, filePath || "")
+      .input("bep20", sql.VarChar, bep20 || "")
       .input("Address", sql.VarChar, address || "").query(`
         UPDATE Member_Details
         SET
@@ -318,7 +320,8 @@ exports.updateProfile = async (req, res) => {
           PinCode = @PinCode,
           Sex = @Sex,
           uplineid = @UpiId,
-          Placement = @filePath
+          Placement = @filePath,
+          Product_Name = @bep20
         WHERE ConsumerID = @MID
       `);
 

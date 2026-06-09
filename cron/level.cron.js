@@ -122,18 +122,19 @@ const levelPayout = async (MID, amt) => {
         .input("Consumerid", sql.VarChar, toMID)
         .input("FromMID", sql.VarChar, MID)
         .input("Level", sql.Int, level).query(`
-                    SELECT TOP 1 Id
-                    FROM Comission
-                    WHERE Consumerid = @Consumerid
-                    AND lavelcosumied = @FromMID
-                    AND Lavel = @Level
-                    AND CAST(Payoutdate AS DATE) = CAST(GETDATE() AS DATE)
-                    AND PayoutType = 'LEVEL'
-             `);
+                SELECT TOP 1 Id
+                FROM Comission
+                WHERE Consumerid = @Consumerid
+                AND lavelcosumied = @FromMID
+                AND Lavel = @Level
+                AND CAST(Payoutdate AS DATE) = CAST(GETDATE() AS DATE)
+                AND PayoutType = 'LEVEL'
+        `);
 
       if (alreadyPaid.recordset.length) {
         continue;
       }
+
       // ===== INSERT COMMISSION =====
       await pool
         .request()
@@ -141,7 +142,7 @@ const levelPayout = async (MID, amt) => {
         .input("Name", sql.VarChar, toName)
         .input("Level", sql.Int, level)
         .input("FromMID", sql.VarChar, MID)
-        .input("percent", sql.VarChar, percent)
+        .input("percent", sql.Decimal(18, 5), percent)
         .input("TotalBV", sql.Decimal(18, 2), Number(amt))
         .input("Levelincome", sql.Decimal(18, 2), levelIncome)
         .input("Totalmember", sql.Int, 1).query(`
@@ -153,7 +154,7 @@ const levelPayout = async (MID, amt) => {
               Consumerid,
               Name,
               Lavel,
-              Percent,
+              [Percent],
               lavelcosumied,
               Totalbv,
               Levelincome,
