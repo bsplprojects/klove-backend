@@ -22,7 +22,7 @@ const getROIIncomeHistory = async (req, res) => {
     if (adminID === null) {
       result = await request.query(baseQuery);
     } else {
-      baseQuery += ` WHERE ConsumerID = @MID`;
+      baseQuery += ` WHERE MID = @MID`;
       result = await request
         .input("MID", sql.VarChar, adminID)
         .query(baseQuery);
