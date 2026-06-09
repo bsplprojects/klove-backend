@@ -46,9 +46,9 @@ cron.schedule(
           .input("Name", sql.VarChar, topup.Name)
           .input("pDate", sql.DateTime, now)
           .input("Day", sql.VarChar, dayName).query(`
-      INSERT INTO Growth_Income (Amount, MID, Name, pDate, Day)
-      VALUES (@amount, @MID, @Name, @pDate, @Day);
-    `);
+          INSERT INTO Growth_Income (Amount, MID, Name, pDate, Day)
+          VALUES (@amount, @MID, @Name, @pDate, @Day);
+        `);
       }
     } catch (error) {
       console.log("❌ CRON ERROR : ", error);
@@ -59,3 +59,52 @@ cron.schedule(
     timezone: "Asia/Kolkata",
   },
 );
+
+// const sql = require("mssql");
+// const { poolPromise } = require("../config/db");
+
+// (async () => {
+//   try {
+//     console.log("🧪 TEST ROI RUNNING...");
+
+//     const pool = await poolPromise;
+
+//     const result = await pool.request().query(`
+//       SELECT * FROM TopUp
+//     `);
+
+//     const topups = result.recordset;
+
+//     const dayName = new Date().toLocaleDateString("en-US", {
+//       weekday: "long",
+//       timeZone: "Asia/Kolkata",
+//     });
+
+//     const now = new Date();
+
+//     for (const topup of topups) {
+//       const amount = Number(topup.amount || 0);
+//       const roi = amount * 0.02;
+
+//       const insertResult = await pool
+//         .request()
+//         .input("amount", sql.Float, roi)
+//         .input("MID", sql.VarChar, topup.MID)
+//         .input("Name", sql.VarChar, topup.Name)
+//         .input("pDate", sql.DateTime, now)
+//         .input("Day", sql.VarChar, dayName).query(`
+//           INSERT INTO Growth_Income
+//           (Amount, MID, Name, pDate, Day)
+//           VALUES (@amount, @MID, @Name, @pDate, @Day)
+//         `);
+
+//       console.log(`✅ Inserted ROI ${roi} for ${topup.MID}`);
+//     }
+
+//     console.log("🎉 TEST COMPLETED");
+//     process.exit(0);
+//   } catch (err) {
+//     console.error(err);
+//     process.exit(1);
+//   }
+// })();

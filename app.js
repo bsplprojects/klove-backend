@@ -5,6 +5,7 @@ const cors = require("cors");
 const session = require("express-session");
 const path = require("path");
 require("./cron/roi.cron");
+require("./cron/level.cron");
 
 const authRoutes = require("./routes/auth.routes");
 const dashboardRoutes = require("./routes/dashboard.routes");
