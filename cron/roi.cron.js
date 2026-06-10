@@ -3,7 +3,7 @@ const sql = require("mssql");
 const { poolPromise } = require("../config/db");
 
 cron.schedule(
-  "0 0 * * *",
+  "1 0 * * *",
   async () => {
     try {
       console.log("✅ CRON EXECUTING...");

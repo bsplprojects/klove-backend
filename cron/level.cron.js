@@ -3,7 +3,7 @@ const { poolPromise } = require("../config/db");
 const cron = require("node-cron");
 
 cron.schedule(
-  "0 0 * * *",
+  "30 0 * * *",
   async () => {
     try {
       console.log("🚀 LEVEL INCOME CRON STARTED");
@@ -42,7 +42,7 @@ cron.schedule(
 //       WHERE Amount > 0
 //     `);
 
-//     const dates = [new Date("2026-06-08"), new Date("2026-06-09")];
+//     const dates = [new Date("2026-06-10")];
 
 //     for (const date of dates) {
 //       for (const row of topups.recordset) {
