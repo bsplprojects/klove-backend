@@ -35,6 +35,19 @@ const insertDeposit = async (req, res) => {
       amountToInsert = Number(amount) * 100;
     }
 
+    // check if txnNo already exists
+    const existingTxnNo = await pool
+      .request()
+      .input("txnNo", sql.VarChar, txnNo)
+      .query(`SELECT COUNT(*) AS count FROM AddFundRequest WHERE tNo = @txnNo`);
+
+    if (existingTxnNo.recordset[0].count > 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Transaction number already exists",
+      });
+    }
+
     await pool
       .request()
       .input("txnNo", sql.VarChar, txnNo)

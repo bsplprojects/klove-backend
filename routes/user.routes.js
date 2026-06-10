@@ -12,6 +12,7 @@ const {
   getP2pLedgerReport,
   getP2pLedgerReportAll,
   getSponsorById,
+  changeMemberPassword,
 } = require("../controllers/user.controller");
 
 const storage = multer.diskStorage({
@@ -36,6 +37,7 @@ router.get("/get-by-id", getSponsorById);
 router.get("/commission-history", getCommissionHistory);
 router.patch("/update-profile", upload.single("file"), updateProfile);
 router.post("/change-password", changePassword);
+router.post("/member-password", changeMemberPassword);
 router.get("/p2p-ledger-report", getP2pLedgerReport);
 router.get("/commission-history-all", getCommissionHistoryAll);
 router.get("/growth-income-history", getGrowthIncomeHistoryAll);

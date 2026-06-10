@@ -346,8 +346,6 @@ exports.changePassword = async (req, res) => {
   try {
     const { MID, currentPassword, newPassword } = req.body;
 
-    // ================= VALIDATION =================
-
     if (!MID || !currentPassword || !newPassword) {
       return res.status(400).json({
         success: false,
@@ -356,8 +354,6 @@ exports.changePassword = async (req, res) => {
     }
 
     const pool = await poolPromise;
-
-    // ================= GET USER =================
 
     const result = await pool.request().input("MID", sql.VarChar, MID).query(`
         SELECT Password
@@ -374,8 +370,6 @@ exports.changePassword = async (req, res) => {
 
     const dbPassword = result.recordset[0].Password;
 
-    // ================= CHECK PASSWORD =================
-
     const isMatch = await bcrypt.compare(currentPassword, dbPassword);
 
     if (!isMatch) {
@@ -385,11 +379,69 @@ exports.changePassword = async (req, res) => {
       });
     }
 
-    // ================= HASH NEW PASSWORD =================
-
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-    // ================= UPDATE PASSWORD =================
+    await pool
+      .request()
+      .input("MID", sql.VarChar, MID)
+      .input("Password", sql.VarChar, hashedPassword).query(`
+        UPDATE Member_Details
+        SET Password = @Password
+        WHERE ConsumerID = @MID
+      `);
+
+    return res.status(200).json({
+      success: true,
+      message: "Password updated successfully",
+    });
+  } catch (error) {
+    console.log("CHANGE PASSWORD ERROR =>", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Server Error",
+    });
+  }
+};
+
+exports.changeMemberPassword = async (req, res) => {
+  try {
+    const { MID, newPassword } = req.body;
+
+    if (!MID || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "New Password is required",
+      });
+    }
+
+    const pool = await poolPromise;
+
+    const result = await pool.request().input("MID", sql.VarChar, MID).query(`
+        SELECT Password
+        FROM Member_Details
+        WHERE ConsumerID = @MID
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // const dbPassword = result.recordset[0].Password;
+
+    // const isMatch = await bcrypt.compare(currentPassword, dbPassword);
+
+    // if (!isMatch) {
+    //   return res.status(400).json({
+    //     success: false,
+    //     message: "Current password is incorrect",
+    //   });
+    // }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
 
     await pool
       .request()
