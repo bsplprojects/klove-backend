@@ -74,6 +74,15 @@ const withdrawalRequest = async (req, res) => {
       });
     }
 
+    if (currency === "USDT") {
+      if (user.Product_Name === null || user.Product_Name === "") {
+        return res.status(400).json({
+          success: false,
+          message: "Please set the BEP 20 address in your profile",
+        });
+      }
+    }
+
     // INSERT THE RECORD INSIDE THE BANK TRANSFER NEW TABLE
     const result = await pool
       .request()
@@ -83,7 +92,11 @@ const withdrawalRequest = async (req, res) => {
       .input("PDate", sql.DateTime, new Date())
       .input("Mode", sql.VarChar, currency)
       .input("Name", sql.VarChar, user.Name)
-      .input("upi", sql.VarChar, user.uplineid)
+      .input(
+        "upi",
+        sql.VarChar,
+        currency === "USDT" ? user.Product_Name : user.uplineid,
+      )
       .query(
         `
         INSERT INTO BankTransferNew (MID, Amount, Status, PDate, Mode, Name, BAnk) VALUES (@MID, @Amount, @Status, @PDate, @Mode, @Name, @upi);
