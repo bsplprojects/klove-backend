@@ -8,6 +8,7 @@ const {
   addNotice,
   getNotices,
   deleteNotice,
+  getAdminDashboard,
 } = require("../controllers/admin.controller");
 const multer = require("multer");
 const path = require("path");
@@ -29,6 +30,7 @@ const upload = multer({
 });
 
 router.post("/login", adminLogin);
+router.get("/dashboard", getAdminDashboard);
 router.post("/notice", upload.single("file"), addNotice);
 router.get("/notice", getNotices);
 router.delete("/notice/:id", deleteNotice);

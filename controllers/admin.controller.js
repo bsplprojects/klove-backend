@@ -741,6 +741,26 @@ const deleteNotice = async (req, res) => {
   }
 };
 
+const getAdminDashboard = async (req, res) => {
+  try {
+    const pool = await poolPromise;
+
+    const result = await pool.request().execute("Get_AdminDashboard");
+
+    return res.status(200).json({
+      success: true,
+      msg: "Dashboard Fetched Successfully",
+      data: result.recordset,
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      success: false,
+      msg: "Internal Server Error",
+    });
+  }
+};
+
 module.exports = {
   updateRequestStatus,
   topupReport,
@@ -753,4 +773,5 @@ module.exports = {
   addNotice,
   getNotices,
   deleteNotice,
+  getAdminDashboard,
 };
