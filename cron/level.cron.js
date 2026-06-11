@@ -2,33 +2,35 @@ const sql = require("mssql");
 const { poolPromise } = require("../config/db");
 const cron = require("node-cron");
 
-cron.schedule(
-  "30 0 * * *",
-  async () => {
-    try {
-      console.log("🚀 LEVEL INCOME CRON STARTED");
+function startLevelCron() {
+  cron.schedule(
+    "30 0 * * *",
+    async () => {
+      try {
+        console.log("🚀 LEVEL INCOME CRON STARTED");
 
-      const pool = await poolPromise;
+        const pool = await poolPromise;
 
-      const topupRes = await pool.request().query(`
+        const topupRes = await pool.request().query(`
         SELECT MID, Amount
         FROM TopUp
         WHERE Amount > 0
-      `);
+        `);
 
-      for (const topup of topupRes.recordset) {
-        await levelPayout(topup.MID, Number(topup.Amount), new Date());
+        for (const topup of topupRes.recordset) {
+          await levelPayout(topup.MID, Number(topup.Amount), new Date());
+        }
+
+        console.log("✅ LEVEL INCOME CRON COMPLETED");
+      } catch (err) {
+        console.error("❌ LEVEL CRON ERROR:", err);
       }
-
-      console.log("✅ LEVEL INCOME CRON COMPLETED");
-    } catch (err) {
-      console.error("❌ LEVEL CRON ERROR:", err);
-    }
-  },
-  {
-    timezone: "Asia/Kolkata",
-  },
-);
+    },
+    {
+      timezone: "Asia/Kolkata",
+    },
+  );
+}
 
 // (async () => {
 //   try {
@@ -42,7 +44,7 @@ cron.schedule(
 //       WHERE Amount > 0
 //     `);
 
-//     const dates = [new Date("2026-06-10")];
+//     const dates = [new Date("2026-06-11")];
 
 //     for (const date of dates) {
 //       for (const row of topups.recordset) {
@@ -147,47 +149,47 @@ const levelPayout = async (MID, topupAmount, payoutDate = new Date()) => {
     const levelIncome = Number(topupAmount) * (percent / 100);
 
     // 6. INSERT COMMISSION
-    await pool
-      .request()
-      .input("Consumerid", sql.VarChar, sponsorID)
-      .input("Name", sql.VarChar, sponsorName)
-      .input("Level", sql.Int, level)
-      .input("FromMID", sql.VarChar, MID)
-      .input("Percent", sql.Decimal(18, 3), percent)
-      .input("TotalBV", sql.Decimal(18, 2), topupAmount)
-      .input("LevelIncome", sql.Decimal(18, 2), levelIncome)
-      .input("PayoutDate", sql.DateTime, payoutDate).query(`
-        INSERT INTO Comission
-        (
-          Payoutdate,
-          Payoutstartdate,
-          PayoutEnddate,
-          Consumerid,
-          Name,
-          Lavel,
-          lavelcosumied,
-          Totalbv,
-          [Percent],
-          Levelincome,
-          Totalmember,
-          PayoutType
-        )
-        VALUES
-        (
-          @PayoutDate,
-          @PayoutDate,
-          @PayoutDate,
-          @Consumerid,
-          @Name,
-          @Level,
-          @FromMID,
-          @TotalBV,
-          @Percent,
-          @LevelIncome,
-          1,
-          'LEVEL'
-        )
-      `);
+    // await pool
+    //   .request()
+    //   .input("Consumerid", sql.VarChar, sponsorID)
+    //   .input("Name", sql.VarChar, sponsorName)
+    //   .input("Level", sql.Int, level)
+    //   .input("FromMID", sql.VarChar, MID)
+    //   .input("Percent", sql.Decimal(18, 3), percent)
+    //   .input("TotalBV", sql.Decimal(18, 2), topupAmount)
+    //   .input("LevelIncome", sql.Decimal(18, 2), levelIncome)
+    //   .input("PayoutDate", sql.DateTime, payoutDate).query(`
+    //     INSERT INTO Comission
+    //     (
+    //       Payoutdate,
+    //       Payoutstartdate,
+    //       PayoutEnddate,
+    //       Consumerid,
+    //       Name,
+    //       Lavel,
+    //       lavelcosumied,
+    //       Totalbv,
+    //       [Percent],
+    //       Levelincome,
+    //       Totalmember,
+    //       PayoutType
+    //     )
+    //     VALUES
+    //     (
+    //       @PayoutDate,
+    //       @PayoutDate,
+    //       @PayoutDate,
+    //       @Consumerid,
+    //       @Name,
+    //       @Level,
+    //       @FromMID,
+    //       @TotalBV,
+    //       @Percent,
+    //       @LevelIncome,
+    //       1,
+    //       'LEVEL'
+    //     )
+    //   `);
 
     console.log(
       `LEVEL ${level} | ${MID} -> ${sponsorID} (${sponsorName}) | BV=${topupAmount} | Income=${levelIncome}`,
@@ -353,4 +355,4 @@ const levelPayout = async (MID, topupAmount, payoutDate = new Date()) => {
 //   }
 // };
 
-module.exports = { levelPayout };
+module.exports = { levelPayout, startLevelCron };

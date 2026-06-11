@@ -1,0 +1,16 @@
+name: level-income-cron
+
+on:
+  schedule:
+    - cron: "0 19 * * *" # every day at 12:30 AM IST
+  workflow_dispatch:
+
+jobs:
+  run-level-income-cron:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Call Level Income API and store data in DB
+        run: |
+          curl -X GET "https://backend.klove.live/api/cron/level-income-cron" \
+          -H "x-cron-key: ${{secrets.CRON_SECRET}}"

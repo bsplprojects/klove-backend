@@ -4,8 +4,9 @@ const express = require("express");
 const cors = require("cors");
 const session = require("express-session");
 const path = require("path");
-require("./cron/roi.cron");
-require("./cron/level.cron");
+const { roiIncomeCron } = require("./cron/roi.cron");
+
+const { startLevelCron } = require("./cron/level.cron");
 
 const authRoutes = require("./routes/auth.routes");
 const dashboardRoutes = require("./routes/dashboard.routes");
@@ -23,6 +24,8 @@ const packageRoutes = require("./routes/package.routes");
 const incomeRoutes = require("./routes/income.routes");
 const payoutRoutes = require("./routes/payout.routes");
 const supportRoutes = require("./routes/support.routes");
+
+const cronRoutes = require("./routes/cron.routes");
 
 const db = require("./config/db");
 
@@ -75,6 +78,8 @@ app.use("/api/income", incomeRoutes);
 app.use("/api/payout", payoutRoutes);
 app.use("/api/support", supportRoutes);
 
+app.use("/api/cron", cronRoutes);
+
 app.get("/", (req, res) => {
   res.status(200).json({
     success: true,
@@ -104,6 +109,9 @@ async function startServer() {
     await db.poolPromise;
 
     console.log("✅ Database Connected");
+
+    // startLevelCron();
+    // roiIncomeCron();
 
     app.listen(PORT, () => {
       console.log(`🚀 Server Running On Port ${PORT}`);
