@@ -1,0 +1,16 @@
+name: ROI Income Cron
+
+on:
+  schedule:
+    - cron: "31 18 * * *" # 12:01 AM IST
+  workflow_dispatch:
+
+jobs:
+  run-roi:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger ROI Income API
+        run: |
+          curl -X POST "https://backend.klove.live/api/cron/roi-income-run" \
+          -H "x-cron-key: ${{ secrets.CRON_SECRET }}"
