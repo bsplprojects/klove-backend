@@ -96,11 +96,12 @@ const withdrawalRequest = async (req, res) => {
     const result = await pool
       .request()
       .input("MID", sql.VarChar, MID)
-      .input("Amount", sql.Float, deductedAmount)
+      .input("Amount", sql.Float, mainAmount)
       .input("Status", sql.VarChar, "pending")
       .input("PDate", sql.DateTime, new Date())
       .input("Mode", sql.VarChar, currency)
       .input("Name", sql.VarChar, user.Name)
+      .input("deduction", sql.Decimal, deductedAmount)
       .input(
         "PayMobNo",
         sql.VarChar,
@@ -113,7 +114,7 @@ const withdrawalRequest = async (req, res) => {
       )
       .query(
         `
-        INSERT INTO BankTransferNew (MID, Amount, Status, PDate, Mode, Name, BAnk, PayMobNo) VALUES (@MID, @Amount, @Status, @PDate, @Mode, @Name, @upi, @PayMobNo);
+        INSERT INTO BankTransferNew (MID, Amount, Status, PDate, Mode, Name, BAnk, PayMobNo, deduction) VALUES (@MID, @Amount, @Status, @PDate, @Mode, @Name, @upi, @PayMobNo, @deduction);
       `,
       );
 
@@ -632,7 +633,9 @@ const getTradeWalletTransferHistory = async (req, res) => {
           PDate,
           Status,
           Mode,
-          BAnk
+          BAnk,
+          deduction,
+          PayMobNo
         FROM BankTransferNew
       `;
 
