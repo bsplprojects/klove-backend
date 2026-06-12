@@ -41,7 +41,7 @@ function startLevelCron() {
 //       WHERE Amount > 0
 //     `);
 
-//     const dates = [new Date("2026-06-11")];
+//     const dates = [new Date("2026-06-12")];
 
 //     for (const date of dates) {
 //       for (const row of topups.recordset) {

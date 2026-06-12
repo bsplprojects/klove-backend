@@ -12,5 +12,5 @@ jobs:
     steps:
       - name: Trigger ROI Income API
         run: |
-          curl -X POST "https://backend.klove.live/api/cron/roi-income-run" \
+          curl -X POST "https://backend.klove.live/api/cron/roi-income-cron" \
           -H "x-cron-key: ${{ secrets.CRON_SECRET }}"

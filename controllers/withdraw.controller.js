@@ -24,7 +24,7 @@ const withdrawalRequest = async (req, res) => {
       });
     }
 
-    const mainAmount = Number(amount);
+    let mainAmount = Number(amount);
 
     if (currency === "INR" && mainAmount < 500) {
       return res.status(400).json({
@@ -84,14 +84,28 @@ const withdrawalRequest = async (req, res) => {
     }
 
     // INSERT THE RECORD INSIDE THE BANK TRANSFER NEW TABLE
+    // deduct rupees 10 of the amount
+
+    // if currency is USDT multiply by 100
+    if (currency === "USDT") {
+      mainAmount = mainAmount * 100;
+    }
+
+    let deductedAmount = mainAmount - 10;
+
     const result = await pool
       .request()
       .input("MID", sql.VarChar, MID)
-      .input("Amount", sql.Float, amount)
+      .input("Amount", sql.Float, deductedAmount)
       .input("Status", sql.VarChar, "pending")
       .input("PDate", sql.DateTime, new Date())
       .input("Mode", sql.VarChar, currency)
       .input("Name", sql.VarChar, user.Name)
+      .input(
+        "PayMobNo",
+        sql.VarChar,
+        currency === "USDT" ? "1 USDT = 100 INR converted" : "",
+      )
       .input(
         "upi",
         sql.VarChar,
@@ -99,7 +113,7 @@ const withdrawalRequest = async (req, res) => {
       )
       .query(
         `
-        INSERT INTO BankTransferNew (MID, Amount, Status, PDate, Mode, Name, BAnk) VALUES (@MID, @Amount, @Status, @PDate, @Mode, @Name, @upi);
+        INSERT INTO BankTransferNew (MID, Amount, Status, PDate, Mode, Name, BAnk, PayMobNo) VALUES (@MID, @Amount, @Status, @PDate, @Mode, @Name, @upi, @PayMobNo);
       `,
       );
 
