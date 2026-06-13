@@ -91,17 +91,17 @@ const withdrawalRequest = async (req, res) => {
       mainAmount = mainAmount * 100;
     }
 
-    let deductedAmount = mainAmount - 10;
+    let deductedAmount = mainAmount + 10;
 
     const result = await pool
       .request()
       .input("MID", sql.VarChar, MID)
-      .input("Amount", sql.Float, mainAmount)
+      .input("Amount", sql.Float, deductedAmount)
       .input("Status", sql.VarChar, "pending")
       .input("PDate", sql.DateTime, new Date())
       .input("Mode", sql.VarChar, currency)
       .input("Name", sql.VarChar, user.Name)
-      .input("deduction", sql.Decimal, deductedAmount)
+      .input("deduction", sql.Decimal, mainAmount)
       .input(
         "PayMobNo",
         sql.VarChar,

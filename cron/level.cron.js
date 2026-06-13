@@ -141,6 +141,7 @@ const levelPayout = async (MID, topupAmount, payoutDate = new Date()) => {
 
     if (duplicate.recordset.length) {
       currentMID = nextMID;
+      console.log(`❌ DUPLICATE FOUND: ${sponsorID} | SKIPPING LEVEL ${level}`);
       continue;
     }
 
