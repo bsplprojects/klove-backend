@@ -22,6 +22,22 @@ router.get("/level-income-cron", async (req, res) => {
         WHERE Amount > 0
     `);
 
+    const dayName = new Date().toLocaleDateString("en-US", {
+      weekday: "long",
+      timeZone: "Asia/Kolkata",
+    });
+
+    const now = new Date(
+      new Date().toLocaleString("en-US", {
+        timeZone: "Asia/Kolkata",
+      }),
+    );
+
+    if (dayName === "Saturday" || dayName === "Sunday") {
+      console.log(`⏭️ Skipping Level Income for ${dayName}`);
+      return;
+    }
+
     for (const topup of topupRes.recordset) {
       await levelPayout(topup.MID, Number(topup.Amount), new Date());
     }
