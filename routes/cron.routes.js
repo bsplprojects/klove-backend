@@ -5,6 +5,8 @@ const { poolPromise } = require("../config/db");
 const { levelPayout } = require("../cron/level.cron");
 
 router.get("/level-income-cron", async (req, res) => {
+  let cronRunning = false;
+
   try {
     if (req.headers["x-cron-key"] !== process.env.CRON_SECRET) {
       return res.status(401).json({
@@ -13,41 +15,56 @@ router.get("/level-income-cron", async (req, res) => {
       });
     }
 
+    if (cronRunning) {
+      return res.json({
+        success: true,
+        msg: "⚠️ Cron already running",
+      });
+    }
+
+    cronRunning = true;
+
     console.log("🚀 LEVEL INCOME CRON STARTED");
+
     const pool = await poolPromise;
 
     const topupRes = await pool.request().query(`
-        SELECT MID, Amount
-        FROM TopUp
-        WHERE Amount > 0
+      SELECT MID, Amount
+      FROM TopUp
+      WHERE Amount > 0
     `);
 
+    // ❌ weekend skip (unchanged logic)
     const dayName = new Date().toLocaleDateString("en-US", {
       weekday: "long",
       timeZone: "Asia/Kolkata",
     });
 
-    const now = new Date(
-      new Date().toLocaleString("en-US", {
-        timeZone: "Asia/Kolkata",
-      }),
-    );
-
     if (dayName === "Saturday" || dayName === "Sunday") {
       console.log(`⏭️ Skipping Level Income for ${dayName}`);
-      return;
+      cronRunning = false;
+      return res.json({ success: true, msg: "Weekend skip" });
     }
 
     for (const topup of topupRes.recordset) {
-      await levelPayout(topup.MID, Number(topup.Amount), new Date());
+      await levelPayout(topup.MID, Number(topup.Amount));
     }
 
     console.log("✅ LEVEL INCOME CRON COMPLETED");
+
+    cronRunning = false;
+
+    return res.json({
+      success: true,
+      msg: "Level income completed",
+    });
   } catch (error) {
+    cronRunning = false;
+
     console.error(error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      msg: "❌ GITHUB LEVEL INCOME CRON EXECUTION FAILED",
+      msg: "❌ LEVEL INCOME CRON FAILED",
     });
   }
 });

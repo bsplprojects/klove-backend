@@ -41,7 +41,7 @@ function startLevelCron() {
 //       WHERE Amount > 0
 //     `);
 
-//     const dates = [new Date("2026-06-12")];
+//     const dates = [new Date("2026-06-16")];
 
 //     for (const date of dates) {
 //       for (const row of topups.recordset) {
@@ -73,6 +73,16 @@ const levelPayout = async (MID, topupAmount, payoutDate = new Date()) => {
     7: 0.25,
   };
 
+  const getISTDate = () => {
+    return new Date(
+      new Date().toLocaleString("en-US", {
+        timeZone: "Asia/Kolkata",
+      }),
+    );
+  };
+
+  const today = getISTDate();
+
   for (let level = 1; level <= 7; level++) {
     // 1. GET SPONSOR
     const sponsorRes = await pool
@@ -83,15 +93,15 @@ const levelPayout = async (MID, topupAmount, payoutDate = new Date()) => {
         WHERE ConsumerID = @MID
       `);
 
+    if (!sponsorRes.recordset.length) break;
+
     const sponsorID = sponsorRes.recordset[0]?.SponsorId;
 
-    // stop condition (end of chain or invalid)
     if (!sponsorID || sponsorID === currentMID) break;
 
-    // IMPORTANT: move only after validation
     const nextMID = sponsorID;
 
-    // 2. GET SPONSOR NAME (stable)
+    // 2. GET SPONSOR NAME
     const sponsorInfo = await pool
       .request()
       .input("MID", sql.VarChar, sponsorID).query(`
@@ -123,19 +133,20 @@ const levelPayout = async (MID, topupAmount, payoutDate = new Date()) => {
       continue;
     }
 
-    // 4. DUPLICATE CHECK
+    // 4. FIXED DUPLICATE CHECK (NO CAST ISSUE)
     const duplicate = await pool
       .request()
       .input("ConsumerID", sql.VarChar, sponsorID)
       .input("FromMID", sql.VarChar, MID)
       .input("Level", sql.Int, level)
-      .input("PayoutDate", sql.Date, payoutDate).query(`
+      .input("PayoutDate", sql.DateTime, today).query(`
         SELECT TOP 1 Id
         FROM Comission
         WHERE Consumerid = @ConsumerID
           AND lavelcosumied = @FromMID
           AND Lavel = @Level
-          AND CAST(PayoutDate AS DATE) = CAST(@PayoutDate AS DATE)
+          AND PayoutDate >= DATEADD(DAY, DATEDIFF(DAY, 0, @PayoutDate), 0)
+          AND PayoutDate < DATEADD(DAY, DATEDIFF(DAY, 0, @PayoutDate) + 1, 0)
           AND PayoutType = 'LEVEL'
       `);
 
@@ -145,7 +156,7 @@ const levelPayout = async (MID, topupAmount, payoutDate = new Date()) => {
       continue;
     }
 
-    // 5. CALCULATION
+    // 5. CALCULATION (UNCHANGED)
     const percent = levelPercents[level] || 0;
     const levelIncome = Number(topupAmount) * (percent / 100);
 
@@ -159,7 +170,7 @@ const levelPayout = async (MID, topupAmount, payoutDate = new Date()) => {
       .input("Percent", sql.Decimal(18, 3), percent)
       .input("TotalBV", sql.Decimal(18, 2), topupAmount)
       .input("LevelIncome", sql.Decimal(18, 2), levelIncome)
-      .input("PayoutDate", sql.DateTime, payoutDate).query(`
+      .input("PayoutDate", sql.DateTime, today).query(`
         INSERT INTO Comission
         (
           Payoutdate,
@@ -196,7 +207,6 @@ const levelPayout = async (MID, topupAmount, payoutDate = new Date()) => {
       `LEVEL ${level} | ${MID} -> ${sponsorID} (${sponsorName}) | BV=${topupAmount} | Income=${levelIncome}`,
     );
 
-    // 7. MOVE UP THE CHAIN
     currentMID = nextMID;
   }
 };
