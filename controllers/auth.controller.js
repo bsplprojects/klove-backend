@@ -127,6 +127,7 @@ exports.register = async (req, res) => {
       .input("password", sql.VarChar, hashedPassword)
       .input("sponsorId", sql.VarChar, sponsorId)
       .input("sponsorName", sql.VarChar, sponsorName)
+      .input("status", sql.VarChar, "Active")
       .input("userId", sql.VarChar, userId).query(`
         INSERT INTO Member_Details
         (
@@ -139,7 +140,8 @@ exports.register = async (req, res) => {
           MobileNo,
           PhoneNo,
           Password,
-          JoiningDate
+          JoiningDate,
+          mStatus
         )
         VALUES
         (
@@ -152,7 +154,8 @@ exports.register = async (req, res) => {
           @phone,
           @email,
           @password,
-          GETDATE()
+          GETDATE(),
+          @status
         )
       `);
 

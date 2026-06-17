@@ -57,7 +57,7 @@ function startLevelCron() {
 
 // ----------------------------------------------------------------------------------------------------
 
-// ✅✅ THIS FUNCTION IS WORKING IN THE CRON ROUTES.
+// ✅ THIS FUNCTION IS WORKING IN THE CRON ROUTES.
 const levelPayout = async (MID, topupAmount, payoutDate = new Date()) => {
   const pool = await poolPromise;
 

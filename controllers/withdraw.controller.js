@@ -16,7 +16,8 @@ const withdrawalRequest = async (req, res) => {
   try {
     const { MID, amount, currency } = req.body;
 
-    // ================= VALIDATION =================
+    pool = await poolPromise;
+
     if (!amount) {
       return res.status(400).json({
         success: false,
@@ -40,9 +41,6 @@ const withdrawalRequest = async (req, res) => {
       });
     }
 
-    // ================= DB CONNECT =================
-    pool = await poolPromise;
-
     if (!pool) {
       return res.status(500).json({
         success: false,
@@ -50,7 +48,6 @@ const withdrawalRequest = async (req, res) => {
       });
     }
 
-    // ================= MEMBER =================
     const member = await pool.request().input("MID", sql.VarChar, MID).query(`
         SELECT TOP 1 *
         FROM Member_Details
@@ -93,6 +90,21 @@ const withdrawalRequest = async (req, res) => {
 
     let deductedAmount = mainAmount + 10;
 
+    // I need to check for sufficient balance for the user from the Get_MemberDashboard SP.
+    const dashboard = await pool
+      .request()
+      .input("userID", sql.VarChar, MID)
+      .execute("Get_MemberDashboard");
+
+    const balance = Number(dashboard.recordset[0]?.Balance || 0);
+
+    if (balance < deductedAmount) {
+      return res.status(400).json({
+        success: false,
+        message: "Insufficient balance",
+      });
+    }
+
     const result = await pool
       .request()
       .input("MID", sql.VarChar, MID)
@@ -132,7 +144,6 @@ const withdrawalRequest = async (req, res) => {
     });
   } catch (err) {
     console.log("WITHDRAW ERROR:", err);
-
     return res.status(500).json({
       success: false,
       message: "Internal server error",

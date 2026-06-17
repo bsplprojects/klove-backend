@@ -9,6 +9,7 @@ const {
   getNotices,
   deleteNotice,
   getAdminDashboard,
+  getHelpFunds,
 } = require("../controllers/admin.controller");
 const multer = require("multer");
 const path = require("path");
@@ -33,6 +34,7 @@ router.post("/login", adminLogin);
 router.get("/dashboard", getAdminDashboard);
 router.post("/notice", upload.single("file"), addNotice);
 router.get("/notice", getNotices);
+router.get("/help-funds", getHelpFunds);
 router.delete("/notice/:id", deleteNotice);
 router.put("/request/:id", updateRequestStatus);
 router.put("/request/withdrawal/:id", updateWithdrawalRequestStatus);

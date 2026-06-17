@@ -761,6 +761,85 @@ const getAdminDashboard = async (req, res) => {
   }
 };
 
+const getHelpFunds = async (req, res) => {
+  try {
+    const month = req.query.month?.toString().trim().toLowerCase();
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+
+    const offset = (page - 1) * limit;
+
+    const pool = await poolPromise;
+
+    // Count Query
+    const countRequest = pool.request();
+
+    let countQuery = `
+      SELECT COUNT(*) AS total
+      FROM RoyaltyncomeNew
+    `;
+
+    if (month) {
+      countRequest.input("month", sql.VarChar, month);
+      countQuery += ` WHERE LOWER(Month) = @month`;
+    }
+
+    const countResult = await countRequest.query(countQuery);
+    const totalRecords = countResult.recordset[0].total;
+
+    // Data Query
+    const dataRequest = pool.request();
+
+    let dataQuery = `
+      SELECT
+        ID,
+        MID,
+        Name,
+        pDate,
+        Amount,
+        Month
+      FROM RoyaltyncomeNew
+    `;
+
+    if (month && month !== "all") {
+      dataRequest.input("month", sql.VarChar, month);
+      dataQuery += ` WHERE LOWER(Month) = @month`;
+    }
+
+    dataRequest.input("offset", sql.Int, offset).input("limit", sql.Int, limit);
+
+    dataQuery += `
+      ORDER BY ID DESC
+      OFFSET @offset ROWS
+      FETCH NEXT @limit ROWS ONLY
+    `;
+
+    const result = await dataRequest.query(dataQuery);
+
+    return res.status(200).json({
+      success: true,
+      msg: "Help Funds Fetched Successfully",
+
+      data: result.recordset,
+
+      pagination: {
+        page,
+        limit,
+        totalRecords,
+        totalPages: Math.ceil(totalRecords / limit),
+        hasNextPage: page < Math.ceil(totalRecords / limit),
+        hasPrevPage: page > 1,
+      },
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      success: false,
+      msg: "Internal Server Error",
+    });
+  }
+};
+
 module.exports = {
   updateRequestStatus,
   topupReport,
@@ -774,4 +853,5 @@ module.exports = {
   getNotices,
   deleteNotice,
   getAdminDashboard,
+  getHelpFunds,
 };

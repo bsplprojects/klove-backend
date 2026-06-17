@@ -2,6 +2,7 @@ const cron = require("node-cron");
 const sql = require("mssql");
 const { poolPromise } = require("../config/db");
 
+// ❌ THIS CRON JOB IS NOT USABLE, USE CRON ROUTES INSTEAD
 function roiIncomeCron() {
   // cron.schedule(
   //   "1 0 * * *",
