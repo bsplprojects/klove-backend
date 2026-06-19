@@ -18,15 +18,13 @@ adminLogin = async (req, res) => {
 
     const pool = await db.poolPromise;
 
-    // ======================
-    // FIND USER
-    // ======================
     const result = await pool.request().input("memberId", sql.VarChar, memberId)
       .query(`
         SELECT *
         FROM Member_Details
         WHERE ConsumerID = @memberId
       `);
+
 
     if (result.recordset.length === 0) {
       return res.status(401).json({
@@ -36,19 +34,13 @@ adminLogin = async (req, res) => {
 
     const user = result.recordset[0];
 
-    // ======================
-    // ROLE VERIFY
-    // ======================
     if (user.Role !== "admin") {
       return res.status(403).json({
         error: "Access denied. Not admin.",
       });
     }
 
-    // ======================
-    // PASSWORD VERIFY
-    // ======================
-    const validPassword = await bcrypt.compare(password, user.Secret_Key_No);
+    const validPassword = await bcrypt.compare(password, user.Password);
 
     if (!validPassword) {
       return res.status(401).json({
@@ -56,9 +48,6 @@ adminLogin = async (req, res) => {
       });
     }
 
-    // ======================
-    // JWT TOKEN
-    // ======================
     const token = jwt.sign(
       {
         id: user.Id,

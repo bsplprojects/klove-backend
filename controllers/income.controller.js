@@ -143,9 +143,34 @@ const getLevelIncomeHistory = async (req, res) => {
 
     const result = await dataRequest.query(dataQuery);
 
+    let summaryQuery = `
+              SELECT
+                  ISNULL(SUM(CASE
+                      WHEN CAST(Payoutdate AS DATE) = CAST(GETDATE() AS DATE)
+                      THEN Levelincome ELSE 0 END),0) AS todayLevel,
+
+                  ISNULL(SUM(CASE
+                      WHEN MONTH(Payoutdate) = MONTH(GETDATE())
+                      AND YEAR(Payoutdate) = YEAR(GETDATE())
+                      THEN Levelincome ELSE 0 END),0) AS thisMonthLevel,
+
+                  ISNULL(SUM(Levelincome),0) AS lifetimeLevel
+              FROM Comission
+        `;
+
+    let summaryRequest = pool.request();
+
+    if (adminID !== null) {
+      summaryQuery += ` WHERE Consumerid = @MID`;
+      summaryRequest.input("MID", sql.VarChar, adminID);
+    }
+
+    const summaryResult = await summaryRequest.query(summaryQuery);
+
     return res.status(200).json({
       success: true,
       data: result.recordset,
+      summary: summaryResult.recordset[0],
       pagination: {
         page,
         limit,

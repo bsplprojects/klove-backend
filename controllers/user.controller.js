@@ -429,11 +429,8 @@ exports.changeMemberPassword = async (req, res) => {
         message: "User not found",
       });
     }
-
     // const dbPassword = result.recordset[0].Password;
-
-    // const isMatch = await bcrypt.compare(currentPassword, dbPassword);
-
+    // const isMatch = await bcrypt.compare(newPassword, dbPassword);
     // if (!isMatch) {
     //   return res.status(400).json({
     //     success: false,

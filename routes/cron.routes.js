@@ -133,7 +133,11 @@ router.post("/roi-income-cron", async (req, res) => {
 });
 
 router.post("/rank-cron", async (req, res) => {
+  const pool = await poolPromise;
+  const transaction = new sql.Transaction(pool);
+
   try {
+    
     // if (req.headers["x-cron-key"] !== process.env.CRON_SECRET) {
     //   return res.status(401).json({
     //     success: false,
@@ -141,12 +145,11 @@ router.post("/rank-cron", async (req, res) => {
     //   });
     // }
 
+    await transaction.begin();
     const start = req.body.startDate;
     const end = req.body.endDate;
 
     console.log("✅ RANK CRON API TRIGGERED");
-
-    const pool = await poolPromise;
 
     // fetch all the members from the member details which are active.
     const memberResult = await pool.request().query(`
@@ -179,7 +182,8 @@ router.post("/rank-cron", async (req, res) => {
           if (visited.has(id)) continue;
           visited.add(id);
 
-          const result = await pool.request().query(`
+          const result = await pool.request().input("id", sql.VarChar, id)
+            .query(`
               SELECT
                 ConsumerID,
                 Name,
@@ -190,7 +194,7 @@ router.post("/rank-cron", async (req, res) => {
                 MobileNo,
                 Address
               FROM Member_Details
-              WHERE SponsorId = '${id}'
+              WHERE SponsorId = @id
             `);
 
           const members = result.recordset;
@@ -343,15 +347,24 @@ router.post("/rank-cron", async (req, res) => {
     });
 
     // update the ranks in the member details table.
+    let updatedIDs = [];
     for (const member of filteredMembers) {
-      await pool
+      const id = await transaction
         .request()
         .input("ConsumerID", sql.VarChar, member.ConsumerID)
         .input("rank", sql.VarChar, member.rank).query(`
           UPDATE Member_Details
           SET rank = @rank
+          OUTPUT inserted.ConsumerID, inserted.rank
           WHERE ConsumerID = @ConsumerID
         `);
+
+      if (id.recordset.length > 0) {
+        updatedIDs.push({
+          ConsumerID: id.recordset[0].ConsumerID,
+          rank: id.recordset[0].rank,
+        });
+      }
     }
 
     // now we will calculate the income for help fund 10 rupees will be distributed equally, first we will take out the withdrawals from the member details table between the start date and end date.
@@ -371,30 +384,36 @@ router.post("/rank-cron", async (req, res) => {
     const amountPerWithdrawal = totalWithdrawals / 10;
 
     // insert the data inside the Royaltyincome table (help fund)
-    for (const withdrawal of withdrawals.recordset) {
-      await pool
-        .request()
-        .input("MID", sql.VarChar, withdrawal.MID)
-        .input("Name", sql.VarChar, withdrawal.Name)
-        .input("pDate", sql.DateTime, withdrawal.PDate)
-        .input("Amount", sql.Float, amountPerWithdrawal)
-        .input(
-          "Month",
-          sql.VarChar,
-          new Date().toLocaleString("default", { month: "long" }),
-        ).query(`
-          INSERT INTO RoyaltyncomeNew (MID, Name, pDate, Amount, Month)
-          VALUES (@MID, @Name, @pDate, @Amount, @Month);
+    if (withdrawals.recordset.length > 0) {
+      for (const withdrawal of withdrawals.recordset) {
+        await transaction
+          .request()
+          .input("MID", sql.VarChar, withdrawal.MID)
+          .input("Name", sql.VarChar, withdrawal.Name)
+          .input("pDate", sql.DateTime, withdrawal.PDate)
+          .input("Amount", sql.Float, amountPerWithdrawal)
+          .input(
+            "Month",
+            sql.VarChar,
+            new Date().toLocaleString("default", { month: "long" }),
+          ).query(`
+            INSERT INTO RoyaltyncomeNew (MID, Name, pDate, Amount, Month)
+            VALUES (@MID, @Name, @pDate, @Amount, @Month);
         `);
+      }
     }
 
+    await transaction.commit();
     return res.status(200).json({
       success: true,
       msg: "✅ RANK CRON EXECUTION COMPLETED",
-      data: withdrawals,
+      data: {
+        updatedRanks: updatedIDs,
+      },
     });
   } catch (error) {
     console.error(error);
+    await transaction.rollback();
     res.status(500).json({
       success: false,
       msg: "❌ GITHUB RANK CRON EXECUTION FAILED",
